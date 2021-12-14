@@ -52,11 +52,6 @@ async function createMainWindow() {
 
     const {BrowserWindow} = require('electron'); // should not be statically imported
 
-    const nativeImage = require('electron').nativeImage
-
-    const image = nativeImage.createFromPath(getIcon())
-    console.log(image)
-
     mainWindow = new BrowserWindow({
         x: mainWindowState.x,
         y: mainWindowState.y,
@@ -64,13 +59,12 @@ async function createMainWindow() {
         height: mainWindowState.height,
         title: 'Trilium Notes',
         webPreferences: {
-            enableRemoteModule: true,
             nodeIntegration: true,
             contextIsolation: false,
             spellcheck: spellcheckEnabled
         },
         frame: optionService.getOptionBool('nativeTitleBarVisible'),
-        icon: image
+        icon: getIcon()
     });
 
     mainWindowState.manage(mainWindow);
@@ -80,6 +74,8 @@ async function createMainWindow() {
     mainWindow.on('closed', () => mainWindow = null);
 
     const {webContents} = mainWindow;
+
+    require("@electron/remote/main").enable(webContents);
 
     webContents.on('new-window', (e, url) => {
         if (url !== webContents.getURL()) {
@@ -93,7 +89,8 @@ async function createMainWindow() {
         const parsedUrl = url.parse(targetUrl);
 
         // we still need to allow internal redirects from setup and migration pages
-        if (!['localhost', '127.0.0.1'].includes(parsedUrl.hostname) || (parsedUrl.path && parsedUrl.path !== '/')) {
+        if (!['localhost', '127.0.0.1'].includes(parsedUrl.hostname) || (parsedUrl.path && parsedUrl.path !== '/' && parsedUrl.path !== '/?')) {
+
             ev.preventDefault();
         }
     });
@@ -108,8 +105,7 @@ async function createMainWindow() {
 }
 
 function getIcon() {
-//    return path.join(__dirname, '../../images/app-icons/png/256x256' + (env.isDev() ? '-dev' : '') + '.png');
-    return path.join(__dirname, '../../images/app-icons/png/new.png');
+    return path.join(__dirname, '../../images/app-icons/png/256x256' + (env.isDev() ? '-dev' : '') + '.png');
 }
 
 async function createSetupWindow() {
@@ -170,9 +166,15 @@ async function registerGlobalShortcuts() {
     }
 }
 
+function getMainWindow() {
+    return mainWindow;
+}
+
+
 module.exports = {
     createMainWindow,
     createSetupWindow,
     closeSetupWindow,
-    registerGlobalShortcuts
+    registerGlobalShortcuts,
+    getMainWindow
 };

@@ -108,58 +108,63 @@ function loadSubtreeNoteIds(parentNoteId, subtreeNoteIds) {
     }
 }
 
-function sortNotesByTitle(parentNoteId, foldersFirst = false, reverse = false) {
-    sql.transactional(() => {
-        const notes = sql.getRows(
-            `SELECT branches.branchId, notes.noteId, title, isProtected, 
-                          CASE WHEN COUNT(childBranches.noteId) > 0 THEN 1 ELSE 0 END AS hasChildren 
-                   FROM notes 
-                   JOIN branches ON branches.noteId = notes.noteId
-                   LEFT JOIN branches childBranches ON childBranches.parentNoteId = notes.noteId AND childBranches.isDeleted = 0
-                   WHERE branches.isDeleted = 0 AND branches.parentNoteId = ?
-                   GROUP BY notes.noteId`, [parentNoteId]);
+function sortNotes(parentNoteId, customSortBy = 'title', reverse = false, foldersFirst = false) {
+    if (!customSortBy) {
+        customSortBy = 'title';
+    }
 
-        protectedSessionService.decryptNotes(notes);
-
-        notes.sort((a, b) => {
-            if (foldersFirst && ((a.hasChildren && !b.hasChildren) || (!a.hasChildren && b.hasChildren))) {
-                // exactly one note of the two is a directory so the sorting will be done based on this status
-                return a.hasChildren ? -1 : 1;
-            }
-            else {
-                return a.title.toLowerCase() < b.title.toLowerCase() ? -1 : 1;
-            }
-        });
-
-        if (reverse) {
-            notes.reverse();
-        }
-
-        let position = 10;
-
-        for (const note of notes) {
-            sql.execute("UPDATE branches SET notePosition = ? WHERE branchId = ?",
-                [position, note.branchId]);
-
-            if (note.branchId in becca.branches) {
-                becca.branches[note.branchId].notePosition = position;
-            }
-            else {
-                log.info(`Branch "${note.branchId}" was not found in becca.`);
-            }
-
-            position += 10;
-        }
-
-        entityChangesService.addNoteReorderingEntityChange(parentNoteId);
-    });
-}
-
-function sortNotes(parentNoteId, sortBy, reverse = false) {
     sql.transactional(() => {
         const notes = becca.getNote(parentNoteId).getChildNotes();
 
-        notes.sort((a, b) => a[sortBy] < b[sortBy] ? -1 : 1);
+        const normalize = obj => (obj && typeof obj === 'string') ? obj.toLowerCase() : obj;
+
+        notes.sort((a, b) => {
+            if (foldersFirst) {
+                const aHasChildren = a.hasChildren();
+                const bHasChildren = b.hasChildren();
+
+                if ((aHasChildren && !bHasChildren) || (!aHasChildren && bHasChildren)) {
+                    // exactly one note of the two is a directory so the sorting will be done based on this status
+                    return aHasChildren ? -1 : 1;
+                }
+            }
+
+            function fetchValue(note, key) {
+                const rawValue = ['title', 'dateCreated', 'dateModified'].includes(key)
+                    ? note[key]
+                    : note.getLabelValue(key);
+
+                return normalize(rawValue);
+            }
+
+            function compare(a, b) {
+                return b === null || b === undefined || a < b ? -1 : 1;
+            }
+
+            const topAEl = fetchValue(a, 'top');
+            const topBEl = fetchValue(b, 'top');
+
+            console.log(a.title, topAEl);
+            console.log(b.title, topBEl);
+            console.log("comp", compare(topAEl, topBEl) && !reverse);
+
+            if (topAEl !== topBEl) {
+                // since "top" should not be reversible, we'll reverse it once more to nullify this effect
+                return compare(topAEl, topBEl) * (reverse ? -1 : 1);
+            }
+
+            const customAEl = fetchValue(a, customSortBy);
+            const customBEl = fetchValue(b, customSortBy);
+
+            if (customAEl !== customBEl) {
+                return compare(customAEl, customBEl);
+            }
+
+            const titleAEl = fetchValue(a, 'title');
+            const titleBEl = fetchValue(b, 'title');
+
+            return compare(titleAEl, titleBEl);
+        });
 
         if (reverse) {
             notes.reverse();
@@ -180,6 +185,22 @@ function sortNotes(parentNoteId, sortBy, reverse = false) {
 
         entityChangesService.addNoteReorderingEntityChange(parentNoteId);
     });
+}
+
+function sortNotesIfNeeded(parentNoteId) {
+    const parentNote = becca.getNote(parentNoteId);
+
+    if (!parentNote) {
+        return;
+    }
+
+    const sortedLabel = parentNote.getLabel('sorted');
+
+    if (!sortedLabel || sortedLabel.value === 'off') {
+        return;
+    }
+
+    sortNotes(parentNoteId, sortedLabel.value);
 }
 
 /**
@@ -233,7 +254,7 @@ function setNoteToParent(noteId, prefix, parentNoteId) {
 module.exports = {
     getNotes,
     validateParentChild,
-    sortNotesByTitle,
     sortNotes,
+    sortNotesIfNeeded,
     setNoteToParent
 };

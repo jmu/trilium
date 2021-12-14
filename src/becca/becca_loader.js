@@ -1,15 +1,16 @@
 "use strict";
 
-const sql = require('../services/sql.js');
-const eventService = require('../services/events.js');
-const becca = require('./becca.js');
+const sql = require('../services/sql');
+const eventService = require('../services/events');
+const becca = require('./becca');
 const sqlInit = require('../services/sql_init');
 const log = require('../services/log');
-const Note = require('./entities/note.js');
-const Branch = require('./entities/branch.js');
-const Attribute = require('./entities/attribute.js');
-const Option = require('./entities/option.js');
-const cls = require("../services/cls.js");
+const Note = require('./entities/note');
+const Branch = require('./entities/branch');
+const Attribute = require('./entities/attribute');
+const Option = require('./entities/option');
+const cls = require("../services/cls");
+const entityConstructor = require("../becca/entity_constructor");
 
 const beccaLoaded = new Promise((res, rej) => {
     sqlInit.dbReady.then(() => {
@@ -25,20 +26,27 @@ function load() {
     const start = Date.now();
     becca.reset();
 
-    for (const row of sql.iterateRows(`SELECT noteId, title, type, mime, isProtected, dateCreated, dateModified, utcDateCreated, utcDateModified FROM notes`, [])) {
-        new Note(row);
+    // using raw query and passing arrays to avoid allocating new objects
+    // this is worth it for becca load since it happens every run and blocks the app until finished
+
+    for (const row of sql.getRawRows(`SELECT noteId, title, type, mime, isProtected, dateCreated, dateModified, utcDateCreated, utcDateModified FROM notes WHERE isDeleted = 0`)) {
+        new Note().update(row).init();
     }
 
-    for (const row of sql.iterateRows(`SELECT branchId, noteId, parentNoteId, prefix, notePosition, isExpanded, utcDateModified FROM branches WHERE isDeleted = 0`, [])) {
-        new Branch(row);
+    for (const row of sql.getRawRows(`SELECT branchId, noteId, parentNoteId, prefix, notePosition, isExpanded, utcDateModified FROM branches WHERE isDeleted = 0`)) {
+        new Branch().update(row).init();
     }
 
-    for (const row of sql.iterateRows(`SELECT attributeId, noteId, type, name, value, isInheritable, position, utcDateModified FROM attributes WHERE isDeleted = 0`, [])) {
-        new Attribute(row);
+    for (const row of sql.getRawRows(`SELECT attributeId, noteId, type, name, value, isInheritable, position, utcDateModified FROM attributes WHERE isDeleted = 0`)) {
+        new Attribute().update(row).init();
     }
 
     for (const row of sql.getRows(`SELECT name, value, isSynced, utcDateModified FROM options`)) {
         new Option(row);
+    }
+
+    for (const noteId in becca.notes) {
+        becca.notes[noteId].sortParents();
     }
 
     becca.loaded = true;
@@ -46,11 +54,13 @@ function load() {
     log.info(`Becca (note cache) load took ${Date.now() - start}ms`);
 }
 
-eventService.subscribe([eventService.ENTITY_CHANGED, eventService.ENTITY_CHANGE_SYNCED],  ({entityName, entity}) => {
-    if (!becca.loaded) {
-        return;
-    }
+function reload() {
+    load();
 
+    require('../services/ws').reloadFrontend();
+}
+
+function postProcessEntityUpdate(entityName, entity) {
     if (entityName === 'branches') {
         branchUpdated(entity);
     } else if (entityName === 'attributes') {
@@ -58,27 +68,66 @@ eventService.subscribe([eventService.ENTITY_CHANGED, eventService.ENTITY_CHANGE_
     } else if (entityName === 'note_reordering') {
         noteReorderingUpdated(entity);
     }
+}
+
+eventService.subscribeBeccaLoader([eventService.ENTITY_CHANGE_SYNCED],  ({entityName, entityRow}) => {
+    if (!becca.loaded) {
+        return;
+    }
+
+    if (["notes", "branches", "attributes"].includes(entityName)) {
+        const EntityClass = entityConstructor.getEntityFromEntityName(entityName);
+        const primaryKeyName = EntityClass.primaryKeyName;
+
+        let beccaEntity = becca.getEntity(entityName, entityRow[primaryKeyName]);
+
+        if (beccaEntity) {
+            beccaEntity.updateFromRow(entityRow);
+        } else {
+            beccaEntity = new EntityClass();
+            beccaEntity.updateFromRow(entityRow);
+            beccaEntity.init();
+        }
+    }
+
+    postProcessEntityUpdate(entityName, entityRow);
 });
 
-eventService.subscribe([eventService.ENTITY_DELETED, eventService.ENTITY_DELETE_SYNCED],  ({entityName, entity}) => {
+eventService.subscribeBeccaLoader(eventService.ENTITY_CHANGED,  ({entityName, entity}) => {
+    if (!becca.loaded) {
+        return;
+    }
+
+    postProcessEntityUpdate(entityName, entity);
+});
+
+eventService.subscribeBeccaLoader([eventService.ENTITY_DELETED, eventService.ENTITY_DELETE_SYNCED],  ({entityName, entityId}) => {
     if (!becca.loaded) {
         return;
     }
 
     if (entityName === 'notes') {
-        noteDeleted(entity);
+        noteDeleted(entityId);
     } else if (entityName === 'branches') {
-        branchDeleted(entity);
+        branchDeleted(entityId);
     } else if (entityName === 'attributes') {
-        attributeDeleted(entity);
+        attributeDeleted(entityId);
     }
 });
 
-function noteDeleted(note) {
-    delete becca.notes[note.noteId];
+function noteDeleted(noteId) {
+    delete becca.notes[noteId];
+
+    becca.dirtyNoteSetCache();
 }
 
-function branchDeleted(branch) {
+function branchDeleted(branchId) {
+    const branch = becca.branches[branchId];
+
+    if (!branch) {
+        return;
+    }
+
     const childNote = becca.notes[branch.noteId];
 
     if (childNote) {
@@ -106,11 +155,17 @@ function branchUpdated(branch) {
 
     if (childNote) {
         childNote.flatTextCache = null;
-        childNote.resortParents();
+        childNote.sortParents();
     }
 }
 
-function attributeDeleted(attribute) {
+function attributeDeleted(attributeId) {
+    const attribute = becca.attributes[attributeId];
+
+    if (!attribute) {
+        return;
+    }
+
     const note = becca.notes[attribute.noteId];
 
     if (note) {
@@ -165,7 +220,7 @@ function noteReorderingUpdated(branchIdList) {
     }
 }
 
-eventService.subscribe(eventService.ENTER_PROTECTED_SESSION, () => {
+eventService.subscribeBeccaLoader(eventService.ENTER_PROTECTED_SESSION, () => {
     try {
         becca.decryptProtectedNotes();
     }
@@ -174,9 +229,10 @@ eventService.subscribe(eventService.ENTER_PROTECTED_SESSION, () => {
     }
 });
 
-eventService.subscribe(eventService.LEAVE_PROTECTED_SESSION, load);
+eventService.subscribeBeccaLoader(eventService.LEAVE_PROTECTED_SESSION, load);
 
 module.exports = {
     load,
+    reload,
     beccaLoaded
 };

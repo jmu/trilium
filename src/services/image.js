@@ -14,6 +14,7 @@ const isSvg = require('is-svg');
 const isAnimated = require('is-animated');
 
 async function processImage(uploadBuffer, originalName, shrinkImageSwitch) {
+    const compressImages = optionService.getOptionBool("compressImages");
     const origImageFormat = getImageType(uploadBuffer);
 
     if (origImageFormat && ["webp", "svg", "gif"].includes(origImageFormat.ext)) {
@@ -25,7 +26,7 @@ async function processImage(uploadBuffer, originalName, shrinkImageSwitch) {
         shrinkImageSwitch = false;
     }
 
-    const finalImageBuffer = shrinkImageSwitch ? await shrinkImage(uploadBuffer, originalName) : uploadBuffer;
+    const finalImageBuffer = (compressImages && shrinkImageSwitch) ? await shrinkImage(uploadBuffer, originalName) : uploadBuffer;
 
     const imageFormat = getImageType(finalImageBuffer);
 
@@ -73,11 +74,15 @@ function updateImage(noteId, uploadBuffer, originalName) {
     });
 }
 
-function saveImage(parentNoteId, uploadBuffer, originalName, shrinkImageSwitch) {
+function saveImage(parentNoteId, uploadBuffer, originalName, shrinkImageSwitch, trimFilename = false) {
     log.info(`Saving image ${originalName}`);
 
-    const fileName = sanitizeFilename(originalName);
+    if (trimFilename && originalName.length > 40) {
+        // https://github.com/zadam/trilium/issues/2307
+        originalName = "image";
+    }
 
+    const fileName = sanitizeFilename(originalName);
     const parentNote = becca.getNote(parentNoteId);
 
     const {note} = noteService.createNewNote({
@@ -95,6 +100,14 @@ function saveImage(parentNoteId, uploadBuffer, originalName, shrinkImageSwitch) 
     processImage(uploadBuffer, originalName, shrinkImageSwitch).then(({buffer, imageFormat}) => {
         sql.transactional(() => {
             note.mime = getImageMimeFromExtension(imageFormat.ext);
+
+            if (!originalName.includes(".")) {
+                originalName += "." + imageFormat.ext;
+
+                note.setLabel('originalFileName', originalName);
+                note.title = sanitizeFilename(originalName);
+            }
+
             note.save();
 
             note.setContent(buffer);

@@ -3,6 +3,13 @@ import server from "../../services/server.js";
 import toastService from "../../services/toast.js";
 
 const TPL = `
+<style>
+.disabled-field {
+    opacity: 0.5;
+    pointer-events: none;
+}
+</style>
+
 <div>
     <h4>Spell check</h4>
 
@@ -27,15 +34,22 @@ const TPL = `
 
 <div>
     <h4>Image compression</h4>
-
+    
     <div class="form-group">
-        <label for="image-max-width-height">Max width / height of an image in pixels (image will be resized if it exceeds this setting).</label>
-        <input class="form-control" id="image-max-width-height" type="number">
+        <input id="image-compresion-enabled" type="checkbox" name="image-compression-enabled">
+        <label for="image-compresion-enabled">Enable image compression</label>
     </div>
 
-    <div class="form-group">
-        <label for="image-jpeg-quality">JPEG quality (0 - worst quality, 100 best quality, 50 - 85 is recommended)</label>
-        <input class="form-control" id="image-jpeg-quality" min="0" max="100" type="number">
+    <div id="image-compression-enabled-wraper">
+        <div class="form-group">
+            <label for="image-max-width-height">Max width / height of an image in pixels (image will be resized if it exceeds this setting).</label>
+            <input class="form-control" id="image-max-width-height" type="number">
+        </div>
+    
+        <div class="form-group">
+            <label for="image-jpeg-quality">JPEG quality (0 - worst quality, 100 best quality, 50 - 85 is recommended)</label>
+            <input class="form-control" id="image-jpeg-quality" min="0" max="100" type="number">
+        </div>
     </div>
 </div>
 
@@ -80,6 +94,22 @@ const TPL = `
         <label for="note-revision-snapshot-time-interval-in-seconds">Note revision snapshot time interval (in seconds)</label>
         <input class="form-control" id="note-revision-snapshot-time-interval-in-seconds" type="number">
     </div>
+</div>
+
+<div>
+    <h4>Automatic readonly size</h4>
+
+    <p>Automatic readonly note size is the size after which notes will be displayed in a readonly mode (for performance reasons).</p>
+
+    <div class="form-group">
+        <label for="auto-readonly-size-text">Automatic readonly size (text notes)</label>
+        <input class="form-control" id="auto-readonly-size-text" type="number">
+    </div>
+
+    <div class="form-group">
+        <label for="auto-readonly-size-code">Automatic readonly size (code notes)</label>
+        <input class="form-control" id="auto-readonly-size-code" type="number">
+    </div>
 </div>`;
 
 export default class ProtectedSessionOptions {
@@ -91,14 +121,14 @@ export default class ProtectedSessionOptions {
 
         this.$spellCheckEnabled.on('change', () => {
             const opts = { 'spellCheckEnabled': this.$spellCheckEnabled.is(":checked") ? "true" : "false" };
-            server.put('options', opts).then(() => toastService.showMessage("Options change have been saved."));
+            server.put('options', opts).then(() => toastService.showMessage("Options changed have been saved."));
 
             return false;
         });
 
         this.$spellCheckLanguageCode.on('change', () => {
             const opts = { 'spellCheckLanguageCode': this.$spellCheckLanguageCode.val() };
-            server.put('options', opts).then(() => toastService.showMessage("Options change have been saved."));
+            server.put('options', opts).then(() => toastService.showMessage("Options changed have been saved."));
 
             return false;
         });
@@ -106,7 +136,7 @@ export default class ProtectedSessionOptions {
         this.$availableLanguageCodes = $("#available-language-codes");
 
         if (utils.isElectron()) {
-            const {webContents} = utils.dynamicRequire('electron').remote.getCurrentWindow();
+            const {webContents} = utils.dynamicRequire('@electron/remote').getCurrentWindow();
 
             this.$availableLanguageCodes.text(webContents.session.availableSpellCheckerLanguages.join(', '));
         }
@@ -117,7 +147,7 @@ export default class ProtectedSessionOptions {
             const eraseEntitiesAfterTimeInSeconds = this.$eraseEntitiesAfterTimeInSeconds.val();
 
             server.put('options', { 'eraseEntitiesAfterTimeInSeconds': eraseEntitiesAfterTimeInSeconds }).then(() => {
-                toastService.showMessage("Options change have been saved.");
+                toastService.showMessage("Options changed have been saved.");
             });
 
             return false;
@@ -136,7 +166,7 @@ export default class ProtectedSessionOptions {
             const protectedSessionTimeout = this.$protectedSessionTimeout.val();
 
             server.put('options', { 'protectedSessionTimeout': protectedSessionTimeout }).then(() => {
-                toastService.showMessage("Options change have been saved.");
+                toastService.showMessage("Options changed have been saved.");
             });
 
             return false;
@@ -146,7 +176,7 @@ export default class ProtectedSessionOptions {
 
         this.$noteRevisionsTimeInterval.on('change', () => {
             const opts = { 'noteRevisionSnapshotTimeInterval': this.$noteRevisionsTimeInterval.val() };
-            server.put('options', opts).then(() => toastService.showMessage("Options change have been saved."));
+            server.put('options', opts).then(() => toastService.showMessage("Options changed have been saved."));
 
             return false;
         });
@@ -156,17 +186,55 @@ export default class ProtectedSessionOptions {
 
         this.$imageMaxWidthHeight.on('change', () => {
             const opts = { 'imageMaxWidthHeight': this.$imageMaxWidthHeight.val() };
-            server.put('options', opts).then(() => toastService.showMessage("Options change have been saved."));
+            server.put('options', opts).then(() => toastService.showMessage("Options changed have been saved."));
 
             return false;
         });
 
         this.$imageJpegQuality.on('change', () => {
             const opts = { 'imageJpegQuality': this.$imageJpegQuality.val() };
-            server.put('options', opts).then(() => toastService.showMessage("Options change have been saved."));
+            server.put('options', opts).then(() => toastService.showMessage("Options changed have been saved."));
 
             return false;
         });
+
+        this.$autoReadonlySizeText = $("#auto-readonly-size-text");
+
+        this.$autoReadonlySizeText.on('change', () => {
+            const opts = { 'autoReadonlySizeText': this.$autoReadonlySizeText.val() };
+            server.put('options', opts).then(() => toastService.showMessage("Options changed have been saved."));
+
+            return false;
+        });
+
+        this.$autoReadonlySizeCode = $("#auto-readonly-size-code");
+
+        this.$autoReadonlySizeCode.on('change', () => {
+            const opts = { 'autoReadonlySizeCode': this.$autoReadonlySizeText.val() };
+            server.put('options', opts).then(() => toastService.showMessage("Options changed have been saved."));
+
+            return false;
+        });
+
+        this.$enableImageCompression = $("#image-compresion-enabled");
+        this.$imageCompressionWrapper = $("#image-compression-enabled-wraper");
+
+        this.setImageCompression = (isChecked) => {
+            if (isChecked) {
+                this.$imageCompressionWrapper.removeClass("disabled-field");
+            } else {
+                this.$imageCompressionWrapper.addClass("disabled-field");
+            }
+        }
+
+        this.$enableImageCompression.on("change", () => {
+            const isChecked = this.$enableImageCompression.prop("checked");
+            const opts = { 'compressImages': isChecked ? 'true' : 'false' };
+
+            server.put('options', opts).then(() => toastService.showMessage("Options changed have been saved."));
+
+            this.setImageCompression(isChecked);
+        })
     }
 
     optionsLoaded(options) {
@@ -179,5 +247,12 @@ export default class ProtectedSessionOptions {
 
         this.$imageMaxWidthHeight.val(options['imageMaxWidthHeight']);
         this.$imageJpegQuality.val(options['imageJpegQuality']);
+
+        this.$autoReadonlySizeText.val(options['autoReadonlySizeText']);
+        this.$autoReadonlySizeCode.val(options['autoReadonlySizeCode']);
+
+        const compressImages = options['compressImages'] === 'true';
+        this.$enableImageCompression.prop('checked', compressImages);
+        this.setImageCompression(compressImages);
     }
 }

@@ -4,12 +4,12 @@ const entityChangesService = require('./entity_changes');
 const eventService = require('./events');
 const entityConstructor = require("../becca/entity_constructor");
 
-function updateEntity(entityChange, entity) {
+function updateEntity(entityChange, entityRow) {
     // can be undefined for options with isSynced=false
-    if (!entity) {
+    if (!entityRow) {
         if (entityChange.isSynced) {
             if (entityChange.isErased) {
-                entityChangesService.addEntityChange(entityChange);
+                eraseEntity(entityChange);
             }
             else {
                 log.info(`Encountered synced non-erased entity change without entity: ${JSON.stringify(entityChange)}`);
@@ -23,20 +23,20 @@ function updateEntity(entityChange, entity) {
     }
 
     const updated = entityChange.entityName === 'note_reordering'
-        ? updateNoteReordering(entityChange, entity)
-        : updateNormalEntity(entityChange, entity);
+        ? updateNoteReordering(entityChange, entityRow)
+        : updateNormalEntity(entityChange, entityRow);
 
-    if (updated && !entityChange.isErased) {
-        if (entity.isDeleted) {
+    if (updated) {
+        if (entityRow.isDeleted) {
             eventService.emit(eventService.ENTITY_DELETE_SYNCED, {
                 entityName: entityChange.entityName,
                 entityId: entityChange.entityId
             });
         }
-        else {
+        else if (!entityChange.isErased) {
             eventService.emit(eventService.ENTITY_CHANGE_SYNCED, {
                 entityName: entityChange.entityName,
-                entity
+                entityRow
             });
         }
     }
@@ -103,6 +103,23 @@ function handleContent(content) {
     }
 
     return content;
+}
+
+function eraseEntity(entityChange) {
+    const {entityName, entityId} = entityChange;
+
+    if (!["notes", "note_contents", "branches", "attributes", "note_revisions", "note_revision_contents"].includes(entityName)) {
+        log.error(`Cannot erase entity ${entityName}, id ${entityId}`);
+        return;
+    }
+
+    const keyName = entityConstructor.getEntityFromEntityName(entityName).primaryKeyName;
+
+    sql.execute(`DELETE FROM ${entityName} WHERE ${keyName} = ?`, [entityId]);
+
+    eventService.emit(eventService.ENTITY_DELETE_SYNCED, { entityName, entityId });
+
+    entityChangesService.addEntityChange(entityChange, true);
 }
 
 module.exports = {

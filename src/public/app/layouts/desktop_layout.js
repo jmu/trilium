@@ -35,11 +35,18 @@ import ClosePaneButton from "../widgets/buttons/close_pane_button.js";
 import BasicPropertiesWidget from "../widgets/ribbon_widgets/basic_properties.js";
 import NoteInfoWidget from "../widgets/ribbon_widgets/note_info_widget.js";
 import BookPropertiesWidget from "../widgets/ribbon_widgets/book_properties.js";
-import LinkMapWidget from "../widgets/ribbon_widgets/link_map.js";
+import NoteMapRibbonWidget from "../widgets/ribbon_widgets/note_map.js";
 import NotePathsWidget from "../widgets/ribbon_widgets/note_paths.js";
 import SimilarNotesWidget from "../widgets/ribbon_widgets/similar_notes.js";
 import RightPaneContainer from "../widgets/containers/right_pane_container.js";
 import EditButton from "../widgets/buttons/edit_button.js";
+import CalendarWidget from "../widgets/buttons/calendar.js";
+import EditedNotesWidget from "../widgets/ribbon_widgets/edited_notes.js";
+import OpenNoteButtonWidget from "../widgets/buttons/open_note_button_widget.js";
+import MermaidWidget from "../widgets/mermaid.js";
+import BookmarkButtons from "../widgets/bookmark_buttons.js";
+import NoteWrapperWidget from "../widgets/note_wrapper.js";
+import BacklinksWidget from "../widgets/backlinks.js";
 
 export default class DesktopLayout {
     constructor(customWidgets) {
@@ -67,14 +74,18 @@ export default class DesktopLayout {
                     .icon("bx-send")
                     .title("Jump to note")
                     .command("jumpToNote"))
+                .child(new OpenNoteButtonWidget()
+                    .targetNote('globalnotemap'))
                 .child(new ButtonWidget()
                     .icon("bx-history")
                     .title("Show recent changes")
                     .command("showRecentChanges"))
+                .child(new CalendarWidget())
                 .child(new SpacerWidget(40, 0))
                 .child(new FlexContainer("column")
                     .id("plugin-buttons")
                     .contentSized())
+                .child(new BookmarkButtons())
                 .child(new SpacerWidget(0, 1000))
                 .child(new ProtectedSessionStatusWidget())
                 .child(new SyncStatusWidget())
@@ -101,9 +112,7 @@ export default class DesktopLayout {
                         .collapsible()
                         .id('center-pane')
                         .child(new SplitNoteContainer(() =>
-                            new FlexContainer('column')
-                                .css("flex-grow", "1")
-                                .collapsible()
+                            new NoteWrapperWidget()
                                 .child(new FlexContainer('row').class('title-row')
                                     .css("height", "50px")
                                     .css('align-items', "center")
@@ -117,27 +126,30 @@ export default class DesktopLayout {
                                 .child(
                                     new RibbonContainer()
                                         .ribbon(new SearchDefinitionWidget())
-                                        .ribbon(new BasicPropertiesWidget())
+                                        .ribbon(new EditedNotesWidget())
                                         .ribbon(new BookPropertiesWidget())
                                         .ribbon(new NotePropertiesWidget())
                                         .ribbon(new FilePropertiesWidget())
                                         .ribbon(new ImagePropertiesWidget())
                                         .ribbon(new PromotedAttributesWidget())
+                                        .ribbon(new BasicPropertiesWidget())
                                         .ribbon(new OwnedAttributeListWidget())
                                         .ribbon(new InheritedAttributesWidget())
                                         .ribbon(new NotePathsWidget())
-                                        .ribbon(new LinkMapWidget())
+                                        .ribbon(new NoteMapRibbonWidget())
                                         .ribbon(new SimilarNotesWidget())
                                         .ribbon(new NoteInfoWidget())
                                         .button(new EditButton())
                                         .button(new ButtonWidget()
-                                            .icon('bx bx-history')
+                                            .icon('bx-history')
                                             .title("Note Revisions")
                                             .command("showNoteRevisions")
                                             .titlePlacement("bottom"))
                                         .button(new NoteActionsWidget())
                                 )
                                 .child(new NoteUpdateStatusWidget())
+                                .child(new BacklinksWidget())
+                                .child(new MermaidWidget())
                                 .child(
                                     new ScrollingContainer()
                                         .filling()

@@ -1,9 +1,11 @@
 "use strict";
 
 const sql = require("../services/sql.js");
-const NoteRevision = require("./entities/note_revision.js");
-const RecentNote = require("./entities/recent_note.js");
+const NoteSet = require("../services/search/note_set");
 
+/**
+ * Becca is a backend cache of all notes, branches and attributes. There's a similar frontend cache Froca.
+ */
 class Becca {
     constructor() {
         this.reset();
@@ -26,12 +28,18 @@ class Becca {
         this.loaded = false;
     }
 
-    /** @return {Attribute[]} */
+    /** @returns {Attribute[]} */
     findAttributes(type, name) {
-        return this.attributeIndex[`${type}-${name.toLowerCase()}`] || [];
+        name = name.trim().toLowerCase();
+
+        if (name.startsWith('#') || name.startsWith('~')) {
+            name = name.substr(1);
+        }
+
+        return this.attributeIndex[`${type}-${name}`] || [];
     }
 
-    /** @return {Attribute[]} */
+    /** @returns {Attribute[]} */
     findAttributesWithPrefix(type, name) {
         const resArr = [];
         const key = `${type}-${name}`;
@@ -51,17 +59,26 @@ class Becca {
         }
     }
 
+    addNote(noteId, note) {
+        this.notes[noteId] = note;
+        this.dirtyNoteSetCache();
+    }
+
     getNote(noteId) {
         return this.notes[noteId];
     }
 
-    getNotes(noteIds) {
+    getNotes(noteIds, ignoreMissing = false) {
         const filteredNotes = [];
 
         for (const noteId of noteIds) {
             const note = this.notes[noteId];
 
             if (!note) {
+                if (ignoreMissing) {
+                    continue;
+                }
+
                 throw new Error(`Note '${noteId}' was not found in becca.`);
             }
 
@@ -86,6 +103,7 @@ class Becca {
     getNoteRevision(noteRevisionId) {
         const row = sql.getRow("SELECT * FROM note_revisions WHERE noteRevisionId = ?", [noteRevisionId]);
 
+        const NoteRevision = require("./entities/note_revision.js"); // avoiding circular dependency problems
         return row ? new NoteRevision(row) : null;
     }
 
@@ -96,6 +114,10 @@ class Becca {
     getEntity(entityName, entityId) {
         if (!entityName || !entityId) {
             return null;
+        }
+
+        if (entityName === 'note_revisions') {
+            return this.getNoteRevision(entityId);
         }
 
         const camelCaseEntityName = entityName.toLowerCase().replace(/(_[a-z])/g,
@@ -111,13 +133,41 @@ class Becca {
     getRecentNotesFromQuery(query, params = []) {
         const rows = sql.getRows(query, params);
 
+        const RecentNote = require("./entities/recent_note.js"); // avoiding circular dependency problems
         return rows.map(row => new RecentNote(row));
     }
 
     getNoteRevisionsFromQuery(query, params = []) {
         const rows = sql.getRows(query, params);
 
+        const NoteRevision = require("./entities/note_revision.js"); // avoiding circular dependency problems
         return rows.map(row => new NoteRevision(row));
+    }
+
+    /** Should be called when the set of all non-skeleton notes changes (added/removed) */
+    dirtyNoteSetCache() {
+        this.allNoteSetCache = null;
+    }
+
+    getAllNoteSet() {
+        // caching this since it takes 10s of milliseconds to fill this initial NoteSet for many notes
+        if (!this.allNoteSetCache) {
+            const allNotes = [];
+
+            for (const noteId in becca.notes) {
+                const note = becca.notes[noteId];
+
+                // in the process of loading data sometimes we create "skeleton" note instances which are expected to be filled later
+                // in case of inconsistent data this might not work and search will then crash on these
+                if (note.type !== undefined) {
+                    allNotes.push(note);
+                }
+            }
+
+            this.allNoteSetCache = new NoteSet(allNotes);
+        }
+
+        return this.allNoteSetCache;
     }
 }
 

@@ -2,7 +2,6 @@
 
 const optionService = require('../../services/options');
 const log = require('../../services/log');
-const attributes = require('../../services/attributes');
 const searchService = require('../../services/search/services/search');
 
 // options allowed to be updated directly in options dialog
@@ -18,8 +17,13 @@ const ALLOWED_OPTIONS = new Set([
     'syncProxy',
     'hoistedNoteId',
     'mainFontSize',
+    'mainFontFamily',
     'treeFontSize',
+    'treeFontFamily',
     'detailFontSize',
+    'detailFontFamily',
+    'monospaceFontSize',
+    'monospaceFontFamily',
     'openTabs',
     'noteInfoWidget',
     'attributesWidget',
@@ -43,7 +47,15 @@ const ALLOWED_OPTIONS = new Set([
     'promotedAttributesExpanded',
     'similarNotesExpanded',
     'headingStyle',
-    'autoCollapseNoteTree'
+    'autoCollapseNoteTree',
+    'autoReadonlySizeText',
+    'autoReadonlySizeCode',
+    'overrideThemeFonts',
+    'dailyBackupEnabled',
+    'weeklyBackupEnabled',
+    'monthlyBackupEnabled',
+    'maxContentWidth',
+    'compressImages'
 ]);
 
 function getOptions() {

@@ -2,8 +2,19 @@ ul.fancytree-container {
     padding-left: 0;
 }
 
+ul.fancytree-container li {
+    list-style: none;
+}
+
+span.fancytree-node.fancytree-hide {
+    display: none;
+}
+
 .fancytree-title {
-    margin-left: 7px !important;
+    margin-left: 7px;
+    outline: none;
+    position: relative;
+    top: 2px;
 }
 
 .fancytree-expander {
@@ -15,9 +26,12 @@ ul.fancytree-container {
 }
 
 .fancytree-node {
+    display: flex;
+    align-items: center;
+    height: 38px;
     padding: 4px;
     border: 1px solid transparent;
-    display: block;
+    border-radius: 5px;
     cursor: pointer;
     overflow: hidden;
     white-space: nowrap;
@@ -32,14 +46,53 @@ ul.fancytree-container {
 
 .fancytree-node:not(.fancytree-loading) .fancytree-expander:before {
     font-family: 'boxicons' !important;
+    content: "\ea50"; /* lookup code for "chevron-right" in boxicons.css */
     speak: none;
     font-size: x-large;
     text-transform: none;
     line-height: 1;
-    content: "\e9b2";
     position: relative;
     top: 2px;
     margin-right: 5px;
+}
+
+.fancytree-loading span.fancytree-expander {
+    background-image: none;
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    margin-left: 5px;
+    margin-right: 8px;
+    margin-top: 4px;
+    margin-bottom: 2px;
+}
+
+.fancytree-loading span.fancytree-expander:after {
+    content: " ";
+    color: inherit !important;
+    display: block;
+    border-radius: 50%;
+    border-color: #000 transparent #000 transparent;
+    animation: lds-dual-ring 1.2s linear infinite;
+    width: 12px;
+    height: 12px;
+    margin-top: 4px;
+    margin-left: 1px;
+    border-width: 1px;
+    border-style: solid;
+}
+
+@keyframes lds-dual-ring {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+ul.fancytree-container li {
+    contain: layout paint;
 }
 
 /* this is done to preserve correct indentation. Better solution would be preferable */
@@ -49,7 +102,7 @@ ul.fancytree-container {
 
 .fancytree-node.fancytree-expanded .fancytree-expander:before {
     font-family: 'boxicons' !important;
-    content: "\e9ac";
+    content: "\ea4a"; /* lookup code for "chevron-down" in boxicons.css */
 }
 
 /** some common text styling for cssClass label */
@@ -69,18 +122,12 @@ span.fancytree-node.muted { opacity: 0.6; }
 }
 
 ul.fancytree-container {
-    outline: none !important;
-    background-color: inherit !important;
+    outline: none;
+    background-color: inherit;
 }
 
 .fancytree-custom-icon {
     font-size: 1.2em;
-}
-
-span.fancytree-title {
-    color: inherit !important;
-    background: inherit !important;
-    outline: none !important;
 }
 
 span.fancytree-node.protected > span.fancytree-custom-icon {
@@ -130,7 +177,6 @@ span.fancytree-selected {
 }
 
 span.fancytree-node:hover {
-    border-radius: 5px;
     border: 1px solid var(--main-border-color);
 }
 
@@ -150,13 +196,14 @@ span.fancytree-node.archived {
     display: none;
     font-size: 120%;
     cursor: pointer;
-    position: relative;
-    left: 5px;
-    top: 2px;
+    margin-left: 8px;
+    padding: 1px;
+    border: 1px solid transparent;
+    border-radius: 5px;
 }
 
 .tree-item-button:hover {
-    border-color: var(--main-border-color);
+    border: 1px dotted var(--main-text-color);
 }
 
 .add-note-button {
@@ -165,4 +212,24 @@ span.fancytree-node.archived {
 
 span.fancytree-node:hover .add-note-button {
     display: inline-block;
+}
+
+.fancytree-drop-accept {
+    border: 1px solid var(--main-border-color);
+}
+
+#fancytree-drop-marker.fancytree-drop-after, #fancytree-drop-marker.fancytree-drop-before {
+    width: 100px;
+    /* marker is by default position: relative which doesn't make sense */
+    position: absolute !important;
+    /* heaving a height helps with positioning since the algorithm calculating "top" takes it into account */
+    height: 19px;
+}
+
+#fancytree-drop-marker.fancytree-drop-after {
+    border-bottom: 1px solid var(--muted-text-color);
+}
+
+#fancytree-drop-marker.fancytree-drop-before {
+    border-top: 1px solid var(--muted-text-color);
 }

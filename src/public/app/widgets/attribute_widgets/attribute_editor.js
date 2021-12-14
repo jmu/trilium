@@ -8,6 +8,7 @@ import froca from "../../services/froca.js";
 import attributeRenderer from "../../services/attribute_renderer.js";
 import noteCreateService from "../../services/note_create.js";
 import treeService from "../../services/tree.js";
+import attributeService from "../../services/attributes.js";
 
 const HELP_TEXT = `
 <p>To add label, just type e.g. <code>#rock</code> or if you want to add also value then e.g. <code>#year = 2020</code></p> 
@@ -166,6 +167,7 @@ const editorConfig = {
         'IncludeNote',
         'CutToNote',
         'Mathematics',
+        'AutoformatMath',
         'indentBlockShortcutPlugin',
         'removeFormatLinksPlugin'
     ],
@@ -191,7 +193,8 @@ export default class AttributeEditorWidget extends NoteContextAwareWidget {
 
         this.$editor.on('keydown', async e => {
             if (e.which === 13) {
-                await this.save();
+                // allow autocomplete to fill the result textarea
+                setTimeout(() => this.save(), 100);
             }
 
             this.attributeDetailWidget.hide();
@@ -481,21 +484,6 @@ export default class AttributeEditorWidget extends NoteContextAwareWidget {
         }
     }
 
-    async focusOnAttributesEvent({ntxId}) {
-        if (this.noteContext.ntxId === ntxId) {
-            if (this.$editor.is(":visible")) {
-                this.$editor.trigger('focus');
-
-                this.textEditor.model.change(writer => { // put focus to the end of the content
-                    writer.setSelection(writer.createPositionAt(this.textEditor.model.document.getRoot(), 'end'));
-                });
-            }
-            else {
-                this.triggerEvent('focusOnDetail', {ntxId: this.noteContext.ntxId});
-            }
-        }
-    }
-
     async createNoteForReferenceLink(title) {
         const {note} = await noteCreateService.createNote(this.notePath, {
             activate: false,
@@ -510,7 +498,7 @@ export default class AttributeEditorWidget extends NoteContextAwareWidget {
     }
 
     entitiesReloadedEvent({loadResults}) {
-        if (loadResults.getAttributes(this.componentId).find(attr => attr.isAffecting(this.note))) {
+        if (loadResults.getAttributes(this.componentId).find(attr => attributeService.isAffecting(attr, this.note))) {
             this.refresh();
         }
     }

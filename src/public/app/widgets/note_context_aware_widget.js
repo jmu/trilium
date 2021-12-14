@@ -11,6 +11,10 @@ export default class NoteContextAwareWidget extends BasicWidget {
         }
     }
 
+    isActiveNoteContext() {
+        return appContext.tabManager.getActiveContext() === this.noteContext;
+    }
+
     isNote(noteId) {
         return this.noteId === noteId;
     }

@@ -32,6 +32,14 @@ async function createNote(parentNotePath, options = {}) {
 
     const parentNoteId = treeService.getNoteIdFromNotePath(parentNotePath);
 
+    if (options.type === 'mermaid' && !options.content) {
+        options.content = `graph TD;
+    A-->B;
+    A-->C;
+    B-->D;
+    C-->D;`
+    }
+
     const {note, branch} = await server.post(`notes/${parentNoteId}/children?target=${options.target}&targetBranchId=${options.targetBranchId}`, {
         title: newNoteName,
         content: options.content || "",
@@ -52,7 +60,7 @@ async function createNote(parentNotePath, options = {}) {
         await activeNoteContext.setNote(`${parentNotePath}/${note.noteId}`);
 
         if (options.focus === 'title') {
-            appContext.triggerEvent('focusAndSelectTitle');
+            appContext.triggerEvent('focusAndSelectTitle', {isNewNote: true});
         }
         else if (options.focus === 'content') {
             appContext.triggerEvent('focusOnDetail', {ntxId: activeNoteContext.ntxId});

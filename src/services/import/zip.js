@@ -186,6 +186,7 @@ async function importZip(taskContext, fileBuffer, importRootNote) {
             mime: noteMeta ? noteMeta.mime : 'text/html',
             prefix: noteMeta ? noteMeta.prefix : '',
             isExpanded: noteMeta ? noteMeta.isExpanded : false,
+            notePosition: (noteMeta && firstNote) ? noteMeta.notePosition : undefined,
             isProtected: importRootNote.isProtected && protectedSessionService.isProtectedSessionAvailable(),
         }));
 
@@ -392,7 +393,7 @@ async function importZip(taskContext, fileBuffer, importRootNote) {
         }
     }
 
-    /** @return {string} path without leading or trailing slash and backslashes converted to forward ones*/
+    /** @returns {string} path without leading or trailing slash and backslashes converted to forward ones*/
     function normalizeFilePath(filePath) {
         filePath = filePath.replace(/\\/g, "/");
 
@@ -469,9 +470,9 @@ async function importZip(taskContext, fileBuffer, importRootNote) {
         noteService.scanForLinks(becca.getNote(noteId));
 
         if (!metaFile) {
-            // if there's no meta file then the notes are created based on the order in that tar file but that
+            // if there's no meta file then the notes are created based on the order in that zip file but that
             // is usually quite random so we sort the notes in the way they would appear in the file manager
-            treeService.sortNotesByTitle(noteId, true);
+            treeService.sortNotes(noteId, 'title', false, true);
         }
 
         taskContext.increaseProgressCount();

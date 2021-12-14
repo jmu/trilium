@@ -3,19 +3,28 @@ const sourceIdService = require('./source_id');
 const dateUtils = require('./date_utils');
 const log = require('./log');
 const cls = require('./cls');
+const utils = require('./utils');
 const becca = require("../becca/becca");
 
 let maxEntityChangeId = 0;
 
-function addEntityChange(entityChange) {
-    entityChange.sourceId = entityChange.sourceId || cls.getSourceId() || sourceIdService.getCurrentSourceId();
-    entityChange.isSynced = entityChange.isSynced ? 1 : 0;
-    entityChange.isErased = entityChange.isErased ? 1 : 0;
-    entityChange.id = sql.replace("entity_changes", entityChange);
+function addEntityChange(origEntityChange) {
+    const ec = {...origEntityChange};
 
-    maxEntityChangeId = Math.max(maxEntityChangeId, entityChange.id);
+    delete ec.id;
 
-    cls.addEntityChange(entityChange);
+    if (!ec.changeId) {
+        ec.changeId = utils.randomString(12);
+    }
+
+    ec.sourceId = ec.sourceId || cls.getSourceId() || sourceIdService.getCurrentSourceId();
+    ec.isSynced = ec.isSynced ? 1 : 0;
+    ec.isErased = ec.isErased ? 1 : 0;
+    ec.id = sql.replace("entity_changes", ec);
+
+    maxEntityChangeId = Math.max(maxEntityChangeId, ec.id);
+
+    cls.addEntityChange(ec);
 }
 
 function addNoteReorderingEntityChange(parentNoteId, sourceId) {

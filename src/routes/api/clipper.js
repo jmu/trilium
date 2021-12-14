@@ -15,7 +15,7 @@ const htmlSanitizer = require('../../services/html_sanitizer');
 const {formatAttrForSearch} = require("../../services/attribute_formatter");
 
 function findClippingNote(todayNote, pageUrl) {
-    const notes = todayNote.searchNoteInSubtree(
+    const notes = todayNote.searchNotesInSubtree(
         formatAttrForSearch({
             type: 'label',
             name: "pageUrl",
@@ -59,6 +59,7 @@ function addClipping(req) {
 
         clippingNote.setLabel('clipType', 'clippings');
         clippingNote.setLabel('pageUrl', pageUrl);
+        clippingNote.setLabel('iconClass', 'bx bx-globe');
     }
 
     const rewrittenContent = processContent(images, clippingNote, content);
@@ -92,6 +93,7 @@ function createNote(req) {
 
     if (pageUrl) {
         note.setLabel('pageUrl', pageUrl);
+        note.setLabel('iconClass', 'bx bx-globe');
     }
 
     const rewrittenContent = processContent(images, note, content);
@@ -104,10 +106,7 @@ function createNote(req) {
 }
 
 function processContent(images, note, content) {
-    let rewrittenContent = htmlSanitizer.sanitize(content)
-        // H1 is not supported so convert it to H2
-        .replace(/<h1/ig, "<h2")
-        .replace(/<\/h1/ig, "</h2");
+    let rewrittenContent = htmlSanitizer.sanitize(content);
 
     if (images) {
         for (const {src, dataUrl, imageId} of images) {

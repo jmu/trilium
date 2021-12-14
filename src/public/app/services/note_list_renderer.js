@@ -153,7 +153,7 @@ class NoteListRenderer {
         this.parentNote = parentNote;
         const includedNoteIds = this.getIncludedNoteIds();
 
-        this.noteIds = noteIds.filter(noteId => !includedNoteIds.has(noteId));
+        this.noteIds = noteIds.filter(noteId => !includedNoteIds.has(noteId) && noteId !== 'hidden');
 
         if (this.noteIds.length === 0) {
             return;
@@ -180,7 +180,7 @@ class NoteListRenderer {
         this.showNotePath = showNotePath;
     }
 
-    /** @return {Set<string>} list of noteIds included (images, included notes) into a parent note and which
+    /** @returns {Set<string>} list of noteIds included (images, included notes) into a parent note and which
      *                        don't have to be shown in the note list. */
     getIncludedNoteIds() {
         const includedLinks = this.parentNote

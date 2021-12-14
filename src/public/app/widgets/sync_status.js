@@ -5,10 +5,9 @@ import options from "../services/options.js";
 import syncService from "../services/sync.js";
 
 const TPL = `
-<div class="sync-status-widget">
+<div class="sync-status-widget icon-action">
     <style>
     .sync-status-widget {
-        box-sizing: border-box;
     }
     
     .sync-status {
@@ -16,17 +15,17 @@ const TPL = `
     }
     
     .sync-status .sync-status-icon {
-        font-size: 150%;
         display: inline-block;
-        padding: 10px;
         position: relative;
+        top: -5px;
+        font-size: 110%;
     }
     
     .sync-status .sync-status-sub-icon {
         font-size: 40%; 
         position: absolute; 
-        left: 9px; 
-        top: 24px;
+        left: 0;
+        top: 16px;
     }
     
     .sync-status .sync-status-icon span {
@@ -45,7 +44,7 @@ const TPL = `
               data-placement="right"
               title="<p>Sync status will be known once the next sync attempt starts.</p><p>Click to trigger sync now.</p>">
         </span>
-        <span class="sync-status-icon sync-status-connected-with-changes bx-wifi"
+        <span class="sync-status-icon sync-status-connected-with-changes bx bx-wifi"
               data-toggle="tooltip" 
               data-placement="right"
               title="<p>Connected to the sync server. <br>There are some outstanding changes yet to be synced.</p><p>Click to trigger sync.</p>">
@@ -112,13 +111,6 @@ export default class SyncStatusWidget extends BasicWidget {
 
     processMessage(message) {
         if (message.type === 'sync-pull-in-progress') {
-            toastService.showPersistent({
-                id: 'sync',
-                title: "Sync status",
-                message: "Sync update in progress",
-                icon: "refresh"
-            });
-
             this.syncState = 'in-progress';
             this.lastSyncedPush = message.lastSyncedPush;
         }
@@ -127,9 +119,6 @@ export default class SyncStatusWidget extends BasicWidget {
             this.lastSyncedPush = message.lastSyncedPush;
         }
         else if (message.type === 'sync-finished') {
-            // this gives user a chance to see the toast in case of fast sync finish
-            setTimeout(() => toastService.closePersistent('sync'), 1000);
-
             this.syncState = 'connected';
             this.lastSyncedPush = message.lastSyncedPush;
         }

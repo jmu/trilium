@@ -80,9 +80,10 @@ function setNoteAttribute(req) {
         attr.value = body.value;
         attr.save();
     } else {
-        const attr = new Attribute(body);
-        attr.noteId = noteId;
-        attr.save();
+        const params = {...body};
+        params.noteId = noteId; // noteId must be set before calling constructor for proper initialization
+
+        new Attribute(params).save();
     }
 }
 
@@ -124,11 +125,13 @@ function updateNoteAttributes(req) {
     for (const incAttr of incomingAttributes) {
         position += 10;
 
+        const value = incAttr.value || "";
+
         const perfectMatchAttr = existingAttrs.find(attr =>
             attr.type === incAttr.type &&
             attr.name === incAttr.name &&
             attr.isInheritable === incAttr.isInheritable &&
-            attr.value === incAttr.value);
+            attr.value === value);
 
         if (perfectMatchAttr) {
             existingAttrs = existingAttrs.filter(attr => attr.attributeId !== perfectMatchAttr.attributeId);
@@ -144,7 +147,7 @@ function updateNoteAttributes(req) {
         if (incAttr.type === 'relation') {
             const targetNote = becca.getNote(incAttr.value);
 
-            if (!targetNote || targetNote.isDeleted) {
+            if (!targetNote) {
                 log.error(`Target note of relation ${JSON.stringify(incAttr)} does not exist or is deleted`);
                 continue;
             }

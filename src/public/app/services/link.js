@@ -1,5 +1,5 @@
 import treeService from './tree.js';
-import contextMenu from "./context_menu.js";
+import linkContextMenuService from "./link_context_menu.js";
 import appContext from "./app_context.js";
 import froca from "./froca.js";
 import utils from "./utils.js";
@@ -20,11 +20,23 @@ async function createNoteLink(notePath, options = {}) {
     let noteTitle = options.title;
     const showTooltip = options.showTooltip === undefined ? true : options.showTooltip;
     const showNotePath = options.showNotePath === undefined ? false : options.showNotePath;
+    const showNoteIcon = options.showNoteIcon === undefined ? false : options.showNoteIcon;
+    const referenceLink = options.referenceLink === undefined ? false : options.referenceLink;
+
+    const {noteId, parentNoteId} = treeService.getNoteIdAndParentIdFromNotePath(notePath);
 
     if (!noteTitle) {
-        const {noteId, parentNoteId} = treeService.getNoteIdAndParentIdFromNotePath(notePath);
-
         noteTitle = await treeService.getNoteTitle(noteId, parentNoteId);
+    }
+
+    const $container = $("<span>");
+
+    if (showNoteIcon) {
+        const note = await froca.getNote(noteId);
+
+        $container
+            .append($("<span>").addClass("bx " + note.getIcon()))
+            .append(" ");
     }
 
     const $noteLink = $("<a>", {
@@ -37,7 +49,11 @@ async function createNoteLink(notePath, options = {}) {
         $noteLink.addClass("no-tooltip-preview");
     }
 
-    const $container = $("<span>").append($noteLink);
+    if (referenceLink) {
+        $noteLink.addClass("reference-link");
+    }
+
+    $container.append($noteLink);
 
     if (showNotePath) {
         const resolvedNotePathSegments = await treeService.resolveNotePathToSegments(notePath);
@@ -128,29 +144,7 @@ function linkContextMenu(e) {
 
     e.preventDefault();
 
-    contextMenu.show({
-        x: e.pageX,
-        y: e.pageY,
-        items: [
-            {title: "Open note in a new tab", command: "openNoteInNewTab", uiIcon: "empty"},
-            {title: "Open note in a new split", command: "openNoteInNewSplit", uiIcon: "dock-right"},
-            {title: "Open note in a new window", command: "openNoteInNewWindow", uiIcon: "window-open"}
-        ],
-        selectMenuItemHandler: ({command}) => {
-            if (command === 'openNoteInNewTab') {
-                appContext.tabManager.openTabWithNoteWithHoisting(notePath);
-            }
-            else if (command === 'openNoteInNewSplit') {
-                const subContexts = appContext.tabManager.getActiveContext().getSubContexts();
-                const {ntxId} = subContexts[subContexts.length - 1];
-
-                appContext.triggerCommand("openNewNoteSplit", {ntxId, notePath});
-            }
-            else if (command === 'openNoteInNewWindow') {
-                appContext.triggerCommand('openInWindow', {notePath, hoistedNoteId: 'root'});
-            }
-        }
-    });
+    linkContextMenuService.openContextMenu(notePath, e);
 }
 
 async function loadReferenceLinkTitle(noteId, $el) {

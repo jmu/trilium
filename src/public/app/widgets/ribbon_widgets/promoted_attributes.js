@@ -3,6 +3,7 @@ import ws from "../../services/ws.js";
 import treeService from "../../services/tree.js";
 import noteAutocompleteService from "../../services/note_autocomplete.js";
 import NoteContextAwareWidget from "../note_context_aware_widget.js";
+import attributeService from "../../services/attributes.js";
 
 const TPL = `
 <div>
@@ -37,6 +38,10 @@ const TPL = `
 export default class PromotedAttributesWidget extends NoteContextAwareWidget {
     get name() {
         return "promotedAttributes";
+    }
+
+    get toggleCommand() {
+        return "toggleRibbonTabPromotedAttributes";
     }
 
     doRender() {
@@ -110,9 +115,9 @@ export default class PromotedAttributesWidget extends NoteContextAwareWidget {
 
         const $input = $("<input>")
             .prop("tabindex", 200 + definitionAttr.position)
-            .prop("attribute-id", valueAttr.noteId === this.noteId ? valueAttr.attributeId : '') // if not owned, we'll force creation of a new attribute instead of updating the inherited one
-            .prop("attribute-type", valueAttr.type)
-            .prop("attribute-name", valueAttr.name)
+            .attr("data-attribute-id", valueAttr.noteId === this.noteId ? valueAttr.attributeId : '') // if not owned, we'll force creation of a new attribute instead of updating the inherited one
+            .attr("data-attribute-type", valueAttr.type)
+            .attr("data-attribute-name", valueAttr.name)
             .prop("value", valueAttr.value)
             .addClass("form-control")
             .addClass("promoted-attribute-input")
@@ -225,7 +230,7 @@ export default class PromotedAttributesWidget extends NoteContextAwareWidget {
         }
 
         if (definition.multiplicity === "multi") {
-            const addButton = $("<span>")
+            const $addButton = $("<span>")
                 .addClass("bx bx-plus pointer")
                 .prop("title", "Add new attribute")
                 .on('click', async () => {
@@ -241,12 +246,28 @@ export default class PromotedAttributesWidget extends NoteContextAwareWidget {
                     $new.find('input').trigger('focus');
                 });
 
-            const removeButton = $("<span>")
+            const $removeButton = $("<span>")
                 .addClass("bx bx-trash pointer")
                 .prop("title", "Remove this attribute")
                 .on('click', async () => {
-                    if (valueAttr.attributeId) {
-                        await server.remove("notes/" + this.noteId + "/attributes/" + valueAttr.attributeId, this.componentId);
+                    const attributeId = $input.attr("data-attribute-id");
+
+                    if (attributeId) {
+                        await server.remove("notes/" + this.noteId + "/attributes/" + attributeId, this.componentId);
+                    }
+
+                    // if it's the last one the create new empty form immediately
+                    const sameAttrSelector = `input[data-attribute-type='${valueAttr.type}'][data-attribute-name='${valueName}']`;
+
+                    if (this.$widget.find(sameAttrSelector).length <= 1) {
+                        const $new = await this.createPromotedAttributeCell(definitionAttr, {
+                            attributeId: "",
+                            type: valueAttr.type,
+                            name: valueName,
+                            value: ""
+                        }, valueName);
+
+                        $wrapper.after($new);
                     }
 
                     $wrapper.remove();
@@ -254,9 +275,9 @@ export default class PromotedAttributesWidget extends NoteContextAwareWidget {
 
             $multiplicityCell
                 .append(" &nbsp;")
-                .append(addButton)
+                .append($addButton)
                 .append(" &nbsp;")
-                .append(removeButton);
+                .append($removeButton);
         }
 
         return $wrapper;
@@ -270,7 +291,7 @@ export default class PromotedAttributesWidget extends NoteContextAwareWidget {
         if ($attr.prop("type") === "checkbox") {
             value = $attr.is(':checked') ? "true" : "false";
         }
-        else if ($attr.prop("attribute-type") === "relation") {
+        else if ($attr.attr("data-attribute-type") === "relation") {
             const selectedPath = $attr.getSelectedNotePath();
 
             value = selectedPath ? treeService.getNoteIdFromNotePath(selectedPath) : "";
@@ -280,21 +301,18 @@ export default class PromotedAttributesWidget extends NoteContextAwareWidget {
         }
 
         const result = await server.put(`notes/${this.noteId}/attribute`, {
-            attributeId: $attr.prop("attribute-id"),
-            type: $attr.prop("attribute-type"),
-            name: $attr.prop("attribute-name"),
+            attributeId: $attr.attr("data-attribute-id"),
+            type: $attr.attr("data-attribute-type"),
+            name: $attr.attr("data-attribute-name"),
             value: value
         }, this.componentId);
 
-        $attr.prop("attribute-id", result.attributeId);
+        $attr.attr("data-attribute-id", result.attributeId);
     }
 
     entitiesReloadedEvent({loadResults}) {
-        if (loadResults.getAttributes(this.componentId).find(attr => attr.isAffecting(this.note))) {
+        if (loadResults.getAttributes(this.componentId).find(attr => attributeService.isAffecting(attr, this.note))) {
             this.refresh();
-
-            this.getTitle(this.note);
-            this.triggerCommand('refreshRibbonContainer');
         }
     }
 }

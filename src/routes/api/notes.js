@@ -63,6 +63,7 @@ function updateNote(req) {
 function deleteNote(req) {
     const noteId = req.params.noteId;
     const taskId = req.query.taskId;
+    const eraseNotes = req.query.eraseNotes === 'true';
     const last = req.query.last === 'true';
 
     // note how deleteId is separate from taskId - single taskId produces separate deleteId for each "top level" deleted note
@@ -74,6 +75,10 @@ function deleteNote(req) {
 
     for (const branch of note.getBranches()) {
         noteService.deleteBranch(branch, deleteId, taskContext);
+    }
+
+    if (eraseNotes) {
+        noteService.eraseNotesWithDeleteId(deleteId);
     }
 
     if (last) {
@@ -97,12 +102,7 @@ function sortChildNotes(req) {
 
     const reverse = sortDirection === 'desc';
 
-    if (sortBy === 'title') {
-        treeService.sortNotesByTitle(noteId, false, reverse);
-    }
-    else {
-        treeService.sortNotes(noteId, sortBy, reverse);
-    }
+    treeService.sortNotes(noteId, sortBy, reverse);
 }
 
 function protectNote(req) {
@@ -120,9 +120,8 @@ function protectNote(req) {
 
 function setNoteTypeMime(req) {
     // can't use [] destructuring because req.params is not iterable
-    const noteId = req.params[0];
-    const type = req.params[1];
-    const mime = req.params[2];
+    const {noteId} = req.params;
+    const {type, mime} = req.body;
 
     const note = becca.getNote(noteId);
     note.type = type;

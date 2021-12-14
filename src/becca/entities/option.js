@@ -14,9 +14,13 @@ class Option extends AbstractEntity {
     constructor(row) {
         super();
 
+        /** @type {string} */
         this.name = row.name;
+        /** @type {string} */
         this.value = row.value;
+        /** @type {boolean} */
         this.isSynced = !!row.isSynced;
+        /** @type {string} */
         this.utcDateModified = row.utcDateModified;
 
         this.becca.options[this.name] = this;
@@ -33,9 +37,7 @@ class Option extends AbstractEntity {
             name: this.name,
             value: this.value,
             isSynced: this.isSynced,
-            utcDateModified: this.utcDateModified,
-            // utcDateCreated is scheduled for removal so the value does not matter
-            utcDateCreated: dateUtils.utcNowDateTime()
+            utcDateModified: this.utcDateModified
         }
     }
 }

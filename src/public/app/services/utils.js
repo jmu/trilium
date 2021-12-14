@@ -1,4 +1,8 @@
-function reloadApp() {
+function reloadFrontendApp(reason) {
+    if (reason) {
+        logInfo("Frontend app reload: " + reason);
+    }
+
     window.location.reload(true);
 }
 
@@ -275,7 +279,7 @@ function isHtmlEmpty(html) {
 
 async function clearBrowserCache() {
     if (isElectron()) {
-        const win = dynamicRequire('electron').remote.getCurrentWindow();
+        const win = utils.dynamicRequire('@electron/remote').getCurrentWindow();
         await win.webContents.session.clearCache();
     }
 }
@@ -353,7 +357,7 @@ function isValidAttributeName(name) {
 }
 
 export default {
-    reloadApp,
+    reloadFrontendApp,
     parseDate,
     padNum,
     formatTime,

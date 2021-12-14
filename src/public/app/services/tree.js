@@ -106,6 +106,10 @@ async function resolveNotePathToSegments(notePath, hoistedNoteId = 'root', logEr
 
         const someNotePathSegments = getSomeNotePathSegments(note, hoistedNoteId);
 
+        if (!someNotePathSegments) {
+            throw new Error(`Did not find any path segments for ${note.toString()}, hoisted note ${hoistedNoteId}`);
+        }
+
         // if there isn't actually any note path with hoisted note then return the original resolved note path
         return someNotePathSegments.includes(hoistedNoteId) ? someNotePathSegments : effectivePathSegments;
     }
@@ -134,7 +138,7 @@ ws.subscribeToMessages(message => {
        appContext.tabManager.activateOrOpenNote(message.noteId);
 
        if (utils.isElectron()) {
-           const currentWindow = utils.dynamicRequire("electron").remote.getCurrentWindow();
+           const currentWindow = utils.dynamicRequire('@electron/remote').getCurrentWindow();
 
            currentWindow.show();
        }

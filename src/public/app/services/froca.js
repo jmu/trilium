@@ -6,12 +6,14 @@ import appContext from "./app_context.js";
 import NoteComplement from "../entities/note_complement.js";
 
 /**
- * Froca keeps a read only cache of note tree structure in frontend's memory.
+ * Froca (FROntend CAche) keeps a read only cache of note tree structure in frontend's memory.
  * - notes are loaded lazily when unknown noteId is requested
  * - when note is loaded, all its parent and child branches are loaded as well. For a branch to be used, it's not must be loaded before
  * - deleted notes are present in the cache as well, but they don't have any branches. As a result check for deleted branch is done by presence check - if the branch is not there even though the corresponding note has been loaded, we can infer it is deleted.
  *
  * Note and branch deletions are corner cases and usually not needed.
+ *
+ * Backend has a similar cache called Becca
  */
 class Froca {
     constructor() {
@@ -187,7 +189,7 @@ class Froca {
         }
 
         const branches = [...note.getBranches(), ...note.getChildBranches()];
-console.log("searchResultNoteIds", searchResultNoteIds);
+
         searchResultNoteIds.forEach((resultNoteId, index) => branches.push({
             // branchId should be repeatable since sometimes we reload some notes without rerendering the tree
             branchId: "virt-" + note.noteId + '-' + resultNoteId,
@@ -196,8 +198,6 @@ console.log("searchResultNoteIds", searchResultNoteIds);
             notePosition: (index + 1) * 10,
             fromSearchNote: true
         }));
-
-        console.log("branches", branches);
 
         // update this note with standard (parent) branches + virtual (children) branches
         this.addResp({
@@ -209,7 +209,7 @@ console.log("searchResultNoteIds", searchResultNoteIds);
         froca.notes[note.noteId].searchResultsLoaded = true;
     }
 
-    /** @return {NoteShort[]} */
+    /** @returns {NoteShort[]} */
     getNotesFromCache(noteIds, silentNotFoundError = false) {
         return noteIds.map(noteId => {
             if (!this.notes[noteId] && !silentNotFoundError) {
@@ -223,7 +223,7 @@ console.log("searchResultNoteIds", searchResultNoteIds);
         }).filter(note => !!note);
     }
 
-    /** @return {Promise<NoteShort[]>} */
+    /** @returns {Promise<NoteShort[]>} */
     async getNotes(noteIds, silentNotFoundError = false) {
         const missingNoteIds = noteIds.filter(noteId => !this.notes[noteId]);
 
@@ -240,14 +240,14 @@ console.log("searchResultNoteIds", searchResultNoteIds);
         }).filter(note => !!note);
     }
 
-    /** @return {Promise<boolean>} */
+    /** @returns {Promise<boolean>} */
     async noteExists(noteId) {
         const notes = await this.getNotes([noteId], true);
 
         return notes.length === 1;
     }
 
-    /** @return {Promise<NoteShort>} */
+    /** @returns {Promise<NoteShort>} */
     async getNote(noteId, silentNotFoundError = false) {
         if (noteId === 'none') {
             console.trace(`No 'none' note.`);
@@ -261,6 +261,7 @@ console.log("searchResultNoteIds", searchResultNoteIds);
         return (await this.getNotes([noteId], silentNotFoundError))[0];
     }
 
+    /** @returns {Note|null} */
     getNoteFromCache(noteId) {
         if (!noteId) {
             throw new Error("Empty noteId");
@@ -269,13 +270,14 @@ console.log("searchResultNoteIds", searchResultNoteIds);
         return this.notes[noteId];
     }
 
+    /** @returns {Branch[]} */
     getBranches(branchIds, silentNotFoundError = false) {
         return branchIds
             .map(branchId => this.getBranch(branchId, silentNotFoundError))
             .filter(b => !!b);
     }
 
-    /** @return {Branch} */
+    /** @returns {Branch} */
     getBranch(branchId, silentNotFoundError = false) {
         if (!(branchId in this.branches)) {
             if (!silentNotFoundError) {

@@ -1,6 +1,7 @@
 import NoteContextAwareWidget from "../note_context_aware_widget.js";
 import AttributeDetailWidget from "../attribute_widgets/attribute_detail.js";
 import attributeRenderer from "../../services/attribute_renderer.js";
+import attributeService from "../../services/attributes.js";
 
 const TPL = `
 <div class="inherited-attributes-widget">
@@ -25,10 +26,18 @@ export default class InheritedAttributesWidget extends NoteContextAwareWidget {
         return "inheritedAttributes";
     }
 
+    get toggleCommand() {
+        return "toggleRibbonTabInheritedAttributes";
+    }
+
     constructor() {
         super();
 
-        this.attributeDetailWidget = new AttributeDetailWidget().setParent(this);
+        /** @type {AttributeDetailWidget} */
+        this.attributeDetailWidget = new AttributeDetailWidget()
+            .contentSized()
+            .setParent(this);
+
         this.child(this.attributeDetailWidget);
     }
 
@@ -60,18 +69,21 @@ export default class InheritedAttributesWidget extends NoteContextAwareWidget {
 
         for (const attribute of inheritedAttributes) {
             const $attr = (await attributeRenderer.renderAttribute(attribute, false))
-                .on('click', e => this.attributeDetailWidget.showAttributeDetail({
-                    attribute: {
-                        noteId: attribute.noteId,
-                        type: attribute.type,
-                        name: attribute.name,
-                        value: attribute.value,
-                        isInheritable: attribute.isInheritable
-                    },
-                    isOwned: false,
-                    x: e.pageX,
-                    y: e.pageY
-                }));
+                .on('click', e => {
+                    setTimeout(() =>
+                        this.attributeDetailWidget.showAttributeDetail({
+                            attribute: {
+                                noteId: attribute.noteId,
+                                type: attribute.type,
+                                name: attribute.name,
+                                value: attribute.value,
+                                isInheritable: attribute.isInheritable
+                            },
+                            isOwned: false,
+                            x: e.pageX,
+                            y: e.pageY
+                        }), 100);
+                });
 
             this.$container
                 .append($attr)
@@ -84,7 +96,7 @@ export default class InheritedAttributesWidget extends NoteContextAwareWidget {
     }
 
     entitiesReloadedEvent({loadResults}) {
-        if (loadResults.getAttributes(this.componentId).find(attr => attr.isAffecting(this.note))) {
+        if (loadResults.getAttributes(this.componentId).find(attr => attributeService.isAffecting(attr, this.note))) {
             this.refresh();
         }
     }

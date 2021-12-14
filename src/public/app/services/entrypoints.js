@@ -35,7 +35,7 @@ export default class Entrypoints extends Component {
 
     openDevToolsCommand() {
         if (utils.isElectron()) {
-            utils.dynamicRequire('electron').remote.getCurrentWindow().toggleDevTools();
+            utils.dynamicRequire('@electron/remote').getCurrentWindow().toggleDevTools();
         }
     }
 
@@ -44,7 +44,7 @@ export default class Entrypoints extends Component {
             return;
         }
 
-        const {remote} = utils.dynamicRequire('electron');
+        const remote = utils.dynamicRequire('@electron/remote');
         const {FindInPage} = utils.dynamicRequire('electron-find');
         const findInPage = new FindInPage(remote.getCurrentWebContents(), {
             offsetTop: 10,
@@ -80,7 +80,7 @@ export default class Entrypoints extends Component {
 
         await appContext.tabManager.openContextWithNote(note.noteId, true, null, hoistedNoteId);
 
-        appContext.triggerEvent('focusAndSelectTitle');
+        appContext.triggerEvent('focusAndSelectTitle', {isNewNote: true});
     }
 
     async toggleNoteHoistingCommand() {
@@ -116,7 +116,7 @@ export default class Entrypoints extends Component {
 
     toggleFullscreenCommand() {
         if (utils.isElectron()) {
-            const win = utils.dynamicRequire('electron').remote.getCurrentWindow();
+            const win = utils.dynamicRequire('@electron/remote').getCurrentWindow();
 
             if (win.isFullScreenable()) {
                 win.setFullScreen(!win.isFullScreen());
@@ -129,7 +129,7 @@ export default class Entrypoints extends Component {
     }
 
     reloadFrontendAppCommand() {
-        utils.reloadApp();
+        utils.reloadFrontendApp();
     }
 
     logoutCommand() {
@@ -143,7 +143,7 @@ export default class Entrypoints extends Component {
     backInNoteHistoryCommand() {
         if (utils.isElectron()) {
             // standard JS version does not work completely correctly in electron
-            const webContents = utils.dynamicRequire('electron').remote.getCurrentWebContents();
+            const webContents = utils.dynamicRequire('@electron/remote').getCurrentWebContents();
             const activeIndex = parseInt(webContents.getActiveIndex());
 
             webContents.goToIndex(activeIndex - 1);
@@ -156,7 +156,7 @@ export default class Entrypoints extends Component {
     forwardInNoteHistoryCommand() {
         if (utils.isElectron()) {
             // standard JS version does not work completely correctly in electron
-            const webContents = utils.dynamicRequire('electron').remote.getCurrentWebContents();
+            const webContents = utils.dynamicRequire('@electron/remote').getCurrentWebContents();
             const activeIndex = parseInt(webContents.getActiveIndex());
 
             webContents.goToIndex(activeIndex + 1);
@@ -169,7 +169,13 @@ export default class Entrypoints extends Component {
     async switchToDesktopVersionCommand() {
         utils.setCookie('trilium-device', 'desktop');
 
-        utils.reloadApp();
+        utils.reloadFrontendApp("Switching to desktop version");
+    }
+
+    async switchToMobileVersionCommand() {
+        utils.setCookie('trilium-device', 'mobile');
+
+        utils.reloadFrontendApp("Switching to mobile version");
     }
 
     async openInWindowCommand({notePath, hoistedNoteId}) {
@@ -194,8 +200,7 @@ export default class Entrypoints extends Component {
     }
 
     async runActiveNoteCommand() {
-        const noteContext = appContext.tabManager.getActiveContext();
-        const note = noteContext.note;
+        const {ntxId, note} = appContext.tabManager.getActiveContext();
 
         // ctrl+enter is also used elsewhere so make sure we're running only when appropriate
         if (!note || note.type !== 'code') {
@@ -208,9 +213,9 @@ export default class Entrypoints extends Component {
         } else if (note.mime.endsWith("env=backend")) {
             await server.post('script/run/' + note.noteId);
         } else if (note.mime === 'text/x-sqlite;schema=trilium') {
-            const result = await server.post("sql/execute/" + note.noteId);
+            const {results} = await server.post("sql/execute/" + note.noteId);
 
-            this.triggerEvent('sqlQueryResults', {ntxId: noteContext.ntxId, results: result.results});
+            await appContext.triggerEvent('sqlQueryResults', {ntxId: ntxId, results: results});
         }
 
         toastService.showMessage("Note executed");

@@ -44,7 +44,6 @@ function moveBranchToParent(req) {
     newBranch.save();
 
     branchToMove.markAsDeleted();
-    branchToMove.save();
 
     return { success: true };
 }
@@ -69,23 +68,38 @@ function moveBranchBeforeNote(req) {
         return [200, validationResult];
     }
 
+    const originalBeforeNotePosition = beforeBranch.notePosition;
+
     // we don't change utcDateModified so other changes are prioritized in case of conflict
     // also we would have to sync all those modified branches otherwise hash checks would fail
-    sql.execute("UPDATE branches SET notePosition = notePosition + 10 WHERE parentNoteId = ? AND notePosition >= ? AND isDeleted = 0",
-        [beforeBranch.parentNoteId, beforeBranch.notePosition]);
 
-    entityChangesService.addNoteReorderingEntityChange(beforeBranch.parentNoteId);
+    sql.execute("UPDATE branches SET notePosition = notePosition + 10 WHERE parentNoteId = ? AND notePosition >= ? AND isDeleted = 0",
+        [beforeBranch.parentNoteId, originalBeforeNotePosition]);
+
+    // also need to update becca positions
+    const parentNote = becca.getNote(beforeBranch.parentNoteId);
+
+    for (const childBranch of parentNote.getChildBranches()) {
+        if (childBranch.notePosition >= originalBeforeNotePosition) {
+            childBranch.notePosition += 10;
+        }
+    }
 
     if (branchToMove.parentNoteId === beforeBranch.parentNoteId) {
-        branchToMove.notePosition = beforeBranch.notePosition;
+        branchToMove.notePosition = originalBeforeNotePosition;
         branchToMove.save();
     }
     else {
-        const newBranch = branchToMove.createClone(beforeBranch.parentNoteId, beforeBranch.notePosition);
+        const newBranch = branchToMove.createClone(beforeBranch.parentNoteId, originalBeforeNotePosition);
         newBranch.save();
 
         branchToMove.markAsDeleted();
     }
+
+    treeService.sortNotesIfNeeded(parentNote.noteId);
+
+    // if sorting is not needed then still the ordering might have changed above manually
+    entityChangesService.addNoteReorderingEntityChange(parentNote.noteId);
 
     return { success: true };
 }
@@ -102,14 +116,23 @@ function moveBranchAfterNote(req) {
         return [200, validationResult];
     }
 
+    const originalAfterNotePosition = afterNote.notePosition;
+
     // we don't change utcDateModified so other changes are prioritized in case of conflict
     // also we would have to sync all those modified branches otherwise hash checks would fail
     sql.execute("UPDATE branches SET notePosition = notePosition + 10 WHERE parentNoteId = ? AND notePosition > ? AND isDeleted = 0",
-        [afterNote.parentNoteId, afterNote.notePosition]);
+        [afterNote.parentNoteId, originalAfterNotePosition]);
 
-    entityChangesService.addNoteReorderingEntityChange(afterNote.parentNoteId);
+    // also need to update becca positions
+    const parentNote = becca.getNote(afterNote.parentNoteId);
 
-    const movedNotePosition = afterNote.notePosition + 10;
+    for (const childBranch of parentNote.getChildBranches()) {
+        if (childBranch.notePosition > originalAfterNotePosition) {
+            childBranch.notePosition += 10;
+        }
+    }
+
+    const movedNotePosition = originalAfterNotePosition + 10;
 
     if (branchToMove.parentNoteId === afterNote.parentNoteId) {
         branchToMove.notePosition = movedNotePosition;
@@ -121,6 +144,11 @@ function moveBranchAfterNote(req) {
 
         branchToMove.markAsDeleted();
     }
+
+    treeService.sortNotesIfNeeded(parentNote.noteId);
+
+    // if sorting is not needed then still the ordering might have changed above manually
+    entityChangesService.addNoteReorderingEntityChange(parentNote.noteId);
 
     return { success: true };
 }
@@ -177,11 +205,16 @@ function setExpandedForSubtree(req) {
 
 function deleteBranch(req) {
     const last = req.query.last === 'true';
+    const eraseNotes = req.query.eraseNotes === 'true';
     const branch = becca.getBranch(req.params.branchId);
     const taskContext = TaskContext.getInstance(req.query.taskId, 'delete-notes');
 
     const deleteId = utils.randomString(10);
     const noteDeleted = noteService.deleteBranch(branch, deleteId, taskContext);
+
+    if (eraseNotes) {
+        noteService.eraseNotesWithDeleteId(deleteId);
+    }
 
     if (last) {
         taskContext.taskSucceeded();

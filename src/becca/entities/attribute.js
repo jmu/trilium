@@ -6,6 +6,10 @@ const sql = require("../../services/sql.js");
 const dateUtils = require("../../services/date_utils.js");
 const promotedAttributeDefinitionParser = require("../../services/promoted_attribute_definition_parser");
 
+/**
+ * Attribute is an abstract concept which has two real uses - label (key - value pair)
+ * and relation (representing named relationship between source and target note)
+ */
 class Attribute extends AbstractEntity {
     static get entityName() { return "attributes"; }
     static get primaryKeyName() { return "attributeId"; }
@@ -14,30 +18,56 @@ class Attribute extends AbstractEntity {
     constructor(row) {
         super();
 
-        /** @param {string} */
-        this.attributeId = row.attributeId;
-        /** @param {string} */
-        this.noteId = row.noteId;
-        /** @param {string} */
-        this.type = row.type;
-        /** @param {string} */
-        this.name = row.name;
-        /** @param {int} */
-        this.position = row.position;
-        /** @param {string} */
-        this.value = row.value;
-        /** @param {boolean} */
-        this.isInheritable = !!row.isInheritable;
-        /** @param {string} */
-        this.utcDateModified = row.utcDateModified;
+        if (!row) {
+            return;
+        }
 
+        this.updateFromRow(row);
+        this.init();
+    }
+
+    updateFromRow(row) {
+        this.update([
+            row.attributeId,
+            row.noteId,
+            row.type,
+            row.name,
+            row.value,
+            row.isInheritable,
+            row.position,
+            row.utcDateModified
+        ]);
+    }
+
+    update([attributeId, noteId, type, name, value, isInheritable, position, utcDateModified]) {
+        /** @type {string} */
+        this.attributeId = attributeId;
+        /** @type {string} */
+        this.noteId = noteId;
+        /** @type {string} */
+        this.type = type;
+        /** @type {string} */
+        this.name = name;
+        /** @type {int} */
+        this.position = position;
+        /** @type {string} */
+        this.value = value;
+        /** @type {boolean} */
+        this.isInheritable = !!isInheritable;
+        /** @type {string} */
+        this.utcDateModified = utcDateModified;
+
+        return this;
+    }
+
+    init() {
         if (this.attributeId) {
             this.becca.attributes[this.attributeId] = this;
         }
 
         if (!(this.noteId in this.becca.notes)) {
             // entities can come out of order in sync, create skeleton which will be filled later
-            this.becca.notes[this.noteId] = new Note({noteId: this.noteId});
+            this.becca.addNote(this.noteId, new Note({noteId: this.noteId}));
         }
 
         this.becca.notes[this.noteId].ownedAttributes.push(this);
@@ -117,6 +147,10 @@ class Attribute extends AbstractEntity {
         } else {
             return this.name;
         }
+    }
+
+    get isDeleted() {
+        return !(this.attributeId in this.becca.attributes);
     }
 
     beforeSaving() {

@@ -6,6 +6,7 @@ import treeService from "./tree.js";
 import Component from "../widgets/component.js";
 import froca from "./froca.js";
 import hoistedNoteService from "./hoisted_note.js";
+import options from "./options.js";
 
 class NoteContext extends Component {
     /**
@@ -20,6 +21,11 @@ class NoteContext extends Component {
     }
 
     setEmpty() {
+        this.notePath = null;
+        this.noteId = null;
+        this.parentNoteId = null;
+        this.hoistedNoteId = 'root';
+
         this.triggerEvent('noteSwitched', {
             noteContext: this,
             notePath: this.notePath
@@ -38,7 +44,7 @@ class NoteContext extends Component {
         utils.closeActiveDialog();
 
         this.notePath = resolvedNotePath;
-        this.noteId = treeService.getNoteIdFromNotePath(resolvedNotePath);
+        ({noteId: this.noteId, parentNoteId: this.parentNoteId} = treeService.getNoteIdAndParentIdFromNotePath(resolvedNotePath));
 
         this.readOnlyTemporarilyDisabled = false;
 
@@ -70,7 +76,13 @@ class NoteContext extends Component {
 
     getMainContext() {
         if (this.mainNtxId) {
-            return appContext.tabManager.getNoteContextById(this.mainNtxId);
+            try {
+                return appContext.tabManager.getNoteContextById(this.mainNtxId);
+            }
+            catch (e) {
+                this.mainNtxId = null;
+                return this;
+            }
         }
         else {
             return this;
@@ -90,13 +102,6 @@ class NoteContext extends Component {
     }
 
     async getResolvedNotePath(inputNotePath) {
-        const noteId = treeService.getNoteIdFromNotePath(inputNotePath);
-
-        if ((await froca.getNote(noteId)).isDeleted) {
-            // no point in trying to resolve canonical notePath
-            return inputNotePath;
-        }
-
         const resolvedNotePath = await treeService.resolveNotePath(inputNotePath, this.hoistedNoteId);
 
         if (!resolvedNotePath) {
@@ -111,9 +116,6 @@ class NoteContext extends Component {
         if (await hoistedNoteService.checkNoteAccess(resolvedNotePath, this) === false) {
             return; // note is outside of hoisted subtree and user chose not to unhoist
         }
-
-        // if user choise to unhoist, cache was reloaded, but might not contain this note (since it's on unexpanded path)
-        await froca.getNote(noteId);
 
         return resolvedNotePath;
     }
@@ -132,7 +134,7 @@ class NoteContext extends Component {
         return this.notePath ? this.notePath.split('/') : [];
     }
 
-    /** @return {NoteComplement} */
+    /** @returns {NoteComplement} */
     async getNoteComplement() {
         if (!this.noteId) {
             return null;
@@ -164,11 +166,11 @@ class NoteContext extends Component {
     }
 
     async setHoistedNoteId(noteIdToHoist) {
-        if (this.notePathArray && !this.notePathArray.includes(noteIdToHoist)) {
+        this.hoistedNoteId = noteIdToHoist;
+
+        if (!this.notePathArray?.includes(noteIdToHoist)) {
             await this.setNote(noteIdToHoist);
         }
-
-        this.hoistedNoteId = noteIdToHoist;
 
         await this.triggerEvent('hoistedNoteChanged', {
             noteId: noteIdToHoist,
@@ -192,16 +194,18 @@ class NoteContext extends Component {
 
         const noteComplement = await this.getNoteComplement();
 
-        const SIZE_LIMIT = this.note.type === 'text' ? 10000 : 30000;
+        const sizeLimit = this.note.type === 'text' ?
+            options.getInt('autoReadonlySizeText')
+                : options.getInt('autoReadonlySizeCode');
 
         return noteComplement.content
-            && noteComplement.content.length > SIZE_LIMIT
+            && noteComplement.content.length > sizeLimit
             && !this.note.hasLabel('autoReadOnlyDisabled');
     }
 
     async entitiesReloadedEvent({loadResults}) {
         if (loadResults.isNoteReloaded(this.noteId)) {
-            const note = await froca.getNote(this.noteId);
+            const note = loadResults.getEntity('notes', this.noteId);
 
             if (note.isDeleted) {
                 this.noteId = null;

@@ -9,9 +9,8 @@ const entityChangesService = require('../../services/entity_changes');
 const AbstractEntity = require("./abstract_entity.js");
 
 /**
- * NoteRevision represents snapshot of note's title and content at some point in the past. It's used for seamless note versioning.
- *
- * @extends Entity
+ * NoteRevision represents snapshot of note's title and content at some point in the past.
+ * It's used for seamless note versioning.
  */
 class NoteRevision extends AbstractEntity {
     static get entityName() { return "note_revisions"; }
@@ -21,35 +20,37 @@ class NoteRevision extends AbstractEntity {
     constructor(row) {
         super();
 
-        /** @param {string} */
+        /** @type {string} */
         this.noteRevisionId = row.noteRevisionId;
-        /** @param {string} */
+        /** @type {string} */
         this.noteId = row.noteId;
-        /** @param {string} */
+        /** @type {string} */
         this.type = row.type;
-        /** @param {string} */
+        /** @type {string} */
         this.mime = row.mime;
-        /** @param {boolean} */
+        /** @type {boolean} */
         this.isProtected = !!row.isProtected;
-        /** @param {string} */
+        /** @type {string} */
         this.title = row.title;
-        /** @param {string} */
+        /** @type {string} */
         this.dateLastEdited = row.dateLastEdited;
-        /** @param {string} */
+        /** @type {string} */
         this.dateCreated = row.dateCreated;
-        /** @param {string} */
+        /** @type {string} */
         this.utcDateLastEdited = row.utcDateLastEdited;
-        /** @param {string} */
+        /** @type {string} */
         this.utcDateCreated = row.utcDateCreated;
-        /** @param {string} */
+        /** @type {string} */
         this.utcDateModified = row.utcDateModified;
+        /** @type {number} */
+        this.contentLength = row.contentLength;
 
         if (this.isProtected) {
             if (protectedSessionService.isProtectedSessionAvailable()) {
                 this.title = protectedSessionService.decryptString(this.title);
             }
             else {
-                this.title = "[Protected]";
+                this.title = "[protected]";
             }
         }
     }
@@ -106,7 +107,7 @@ class NoteRevision extends AbstractEntity {
         }
     }
 
-    setContent(content) {
+    setContent(content, ignoreMissingProtectedSession = false) {
         const pojo = {
             noteRevisionId: this.noteRevisionId,
             content: content,
@@ -117,14 +118,14 @@ class NoteRevision extends AbstractEntity {
             if (protectedSessionService.isProtectedSessionAvailable()) {
                 pojo.content = protectedSessionService.encrypt(pojo.content);
             }
-            else {
+            else if (!ignoreMissingProtectedSession) {
                 throw new Error(`Cannot update content of noteRevisionId=${this.noteRevisionId} since we're out of protected session.`);
             }
         }
 
         sql.upsert("note_revision_contents", "noteRevisionId", pojo);
 
-        const hash = utils.hash(this.noteRevisionId + "|" + content);
+        const hash = utils.hash(this.noteRevisionId + "|" + pojo.content.toString());
 
         entityChangesService.addEntityChange({
             entityName: 'note_revision_contents',
@@ -136,6 +137,17 @@ class NoteRevision extends AbstractEntity {
         });
     }
 
+    /** @returns {{contentLength, dateModified, utcDateModified}} */
+    getContentMetadata() {
+        return sql.getRow(`
+            SELECT 
+                LENGTH(content) AS contentLength, 
+                dateModified,
+                utcDateModified 
+            FROM note_revision_contents 
+            WHERE noteRevisionId = ?`, [this.noteRevisionId]);
+    }
+
     beforeSaving() {
         super.beforeSaving();
 
@@ -143,7 +155,7 @@ class NoteRevision extends AbstractEntity {
     }
 
     getPojo() {
-        const pojo = {
+        return {
             noteRevisionId: this.noteRevisionId,
             noteId: this.noteId,
             type: this.type,
@@ -154,8 +166,16 @@ class NoteRevision extends AbstractEntity {
             dateCreated: this.dateCreated,
             utcDateLastEdited: this.utcDateLastEdited,
             utcDateCreated: this.utcDateCreated,
-            utcDateModified: this.utcDateModified
+            utcDateModified: this.utcDateModified,
+            content: this.content,
+            contentLength: this.contentLength
         };
+    }
+
+    getPojoToSave() {
+        const pojo = this.getPojo();
+        delete pojo.content; // not getting persisted
+        delete pojo.contentLength; // not getting persisted
 
         if (pojo.isProtected) {
             if (protectedSessionService.isProtectedSessionAvailable()) {

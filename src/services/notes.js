@@ -50,7 +50,7 @@ function deriveMime(type, mime) {
 
     if (type === 'text') {
         mime = 'text/html';
-    } else if (type === 'code') {
+    } else if (type === 'code' || type === 'mermaid') {
         mime = 'text/plain';
     } else if (['relation-map', 'search'].includes(type)) {
         mime = 'application/json';
@@ -270,7 +270,7 @@ async function downloadImage(noteId, imageUrl) {
         const title = path.basename(parsedUrl.pathname);
 
         const imageService = require('../services/image');
-        const {note} = imageService.saveImage(noteId, imageBuffer, title, true);
+        const {note} = imageService.saveImage(noteId, imageBuffer, title, true, true);
 
         note.addLabel('imageUrl', imageUrl);
 
@@ -305,7 +305,7 @@ function downloadImages(noteId, content) {
             const imageBuffer = Buffer.from(imageBase64, 'base64');
 
             const imageService = require('../services/image');
-            const {note} = imageService.saveImage(noteId, imageBuffer, "inline image", true);
+            const {note} = imageService.saveImage(noteId, imageBuffer, "inline image", true, true);
 
             content = content.substr(0, imageMatch.index)
                 + `<img src="api/images/${note.noteId}/${note.title}"`
@@ -362,6 +362,12 @@ function downloadImages(noteId, content) {
                 const imageNotes = becca.getNotes(Object.values(imageUrlToNoteIdMapping));
 
                 const origNote = becca.getNote(noteId);
+
+                if (!origNote) {
+                    log.error(`Cannot find note ${noteId} to replace image link.`);
+                    return;
+                }
+
                 const origContent = origNote.getContent();
                 let updatedContent = origContent;
 
@@ -460,7 +466,7 @@ function saveNoteRevision(note) {
     const now = new Date();
     const noteRevisionSnapshotTimeInterval = parseInt(optionService.getOption('noteRevisionSnapshotTimeInterval'));
 
-    const revisionCutoff = dateUtils.utcDateStr(new Date(now.getTime() - noteRevisionSnapshotTimeInterval * 1000));
+    const revisionCutoff = dateUtils.utcDateTimeStr(new Date(now.getTime() - noteRevisionSnapshotTimeInterval * 1000));
 
     const existingNoteRevisionId = sql.getValue(
         "SELECT noteRevisionId FROM note_revisions WHERE noteId = ? AND utcDateCreated >= ?", [note.noteId, revisionCutoff]);
@@ -673,10 +679,10 @@ function eraseNotes(noteIdsToErase) {
     }
 
     sql.executeMany(`DELETE FROM notes WHERE noteId IN (???)`, noteIdsToErase);
-    sql.executeMany(`UPDATE entity_changes SET isErased = 1 WHERE entityName = 'notes' AND entityId IN (???)`, noteIdsToErase);
+    setEntityChangesAsErased(sql.getManyRows(`SELECT * FROM entity_changes WHERE entityName = 'notes' AND entityId IN (???)`, noteIdsToErase));
 
     sql.executeMany(`DELETE FROM note_contents WHERE noteId IN (???)`, noteIdsToErase);
-    sql.executeMany(`UPDATE entity_changes SET isErased = 1 WHERE entityName = 'note_contents' AND entityId IN (???)`, noteIdsToErase);
+    setEntityChangesAsErased(sql.getManyRows(`SELECT * FROM entity_changes WHERE entityName = 'note_contents' AND entityId IN (???)`, noteIdsToErase));
 
     // we also need to erase all "dependent" entities of the erased notes
     const branchIdsToErase = sql.getManyRows(`SELECT branchId FROM branches WHERE noteId IN (???)`, noteIdsToErase)
@@ -697,6 +703,14 @@ function eraseNotes(noteIdsToErase) {
     log.info(`Erased notes: ${JSON.stringify(noteIdsToErase)}`);
 }
 
+function setEntityChangesAsErased(entityChanges) {
+    for (const ec of entityChanges) {
+        ec.isErased = true;
+
+        entityChangesService.addEntityChange(ec);
+    }
+}
+
 function eraseBranches(branchIdsToErase) {
     if (branchIdsToErase.length === 0) {
         return;
@@ -704,7 +718,7 @@ function eraseBranches(branchIdsToErase) {
 
     sql.executeMany(`DELETE FROM branches WHERE branchId IN (???)`, branchIdsToErase);
 
-    sql.executeMany(`UPDATE entity_changes SET isErased = 1 WHERE entityName = 'branches' AND entityId IN (???)`, branchIdsToErase);
+    setEntityChangesAsErased(sql.getManyRows(`SELECT * FROM entity_changes WHERE entityName = 'branches' AND entityId IN (???)`, branchIdsToErase));
 }
 
 function eraseAttributes(attributeIdsToErase) {
@@ -714,7 +728,7 @@ function eraseAttributes(attributeIdsToErase) {
 
     sql.executeMany(`DELETE FROM attributes WHERE attributeId IN (???)`, attributeIdsToErase);
 
-    sql.executeMany(`UPDATE entity_changes SET isErased = 1 WHERE entityName = 'attributes' AND entityId IN (???)`, attributeIdsToErase);
+    setEntityChangesAsErased(sql.getManyRows(`SELECT * FROM entity_changes WHERE entityName = 'attributes' AND entityId IN (???)`, attributeIdsToErase));
 }
 
 function eraseDeletedEntities(eraseEntitiesAfterTimeInSeconds = null) {
@@ -724,15 +738,29 @@ function eraseDeletedEntities(eraseEntitiesAfterTimeInSeconds = null) {
 
     const cutoffDate = new Date(Date.now() - eraseEntitiesAfterTimeInSeconds * 1000);
 
-    const noteIdsToErase = sql.getColumn("SELECT noteId FROM notes WHERE isDeleted = 1 AND utcDateModified <= ?", [dateUtils.utcDateStr(cutoffDate)]);
+    const noteIdsToErase = sql.getColumn("SELECT noteId FROM notes WHERE isDeleted = 1 AND utcDateModified <= ?", [dateUtils.utcDateTimeStr(cutoffDate)]);
 
     eraseNotes(noteIdsToErase);
 
-    const branchIdsToErase = sql.getColumn("SELECT branchId FROM branches WHERE isDeleted = 1 AND utcDateModified <= ?", [dateUtils.utcDateStr(cutoffDate)]);
+    const branchIdsToErase = sql.getColumn("SELECT branchId FROM branches WHERE isDeleted = 1 AND utcDateModified <= ?", [dateUtils.utcDateTimeStr(cutoffDate)]);
 
     eraseBranches(branchIdsToErase);
 
-    const attributeIdsToErase = sql.getColumn("SELECT attributeId FROM attributes WHERE isDeleted = 1 AND utcDateModified <= ?", [dateUtils.utcDateStr(cutoffDate)]);
+    const attributeIdsToErase = sql.getColumn("SELECT attributeId FROM attributes WHERE isDeleted = 1 AND utcDateModified <= ?", [dateUtils.utcDateTimeStr(cutoffDate)]);
+
+    eraseAttributes(attributeIdsToErase);
+}
+
+function eraseNotesWithDeleteId(deleteId) {
+    const noteIdsToErase = sql.getColumn("SELECT noteId FROM notes WHERE deleteId = ?", [deleteId]);
+
+    eraseNotes(noteIdsToErase);
+
+    const branchIdsToErase = sql.getColumn("SELECT branchId FROM branches WHERE deleteId = ?", [deleteId]);
+
+    eraseBranches(branchIdsToErase);
+
+    const attributeIdsToErase = sql.getColumn("SELECT attributeId FROM attributes WHERE  deleteId = ?", [deleteId]);
 
     eraseAttributes(attributeIdsToErase);
 }
@@ -792,61 +820,71 @@ function duplicateSubtreeInner(origNote, origBranch, newParentNoteId, noteIdMapp
 
     const newNoteId = noteIdMapping[origNote.noteId];
 
-    const newBranch = new Branch({
-        noteId: newNoteId,
-        parentNoteId: newParentNoteId,
-        // here increasing just by 1 to make sure it's directly after original
-        notePosition: origBranch ? origBranch.notePosition + 1 : null
-    }).save();
+    function createDuplicatedBranch() {
+        return new Branch({
+            noteId: newNoteId,
+            parentNoteId: newParentNoteId,
+            // here increasing just by 1 to make sure it's directly after original
+            notePosition: origBranch ? origBranch.notePosition + 1 : null
+        }).save();
+    }
+
+    function createDuplicatedNote() {
+        const newNote = new Note({
+            ...origNote,
+            noteId: newNoteId,
+            dateCreated: dateUtils.localNowDateTime(),
+            utcDateCreated: dateUtils.utcNowDateTime()
+        }).save();
+
+        let content = origNote.getContent();
+
+        if (['text', 'relation-map', 'search'].includes(origNote.type)) {
+            // fix links in the content
+            content = replaceByMap(content, noteIdMapping);
+        }
+
+        newNote.setContent(content);
+
+        for (const attribute of origNote.getOwnedAttributes()) {
+            const attr = new Attribute({
+                ...attribute,
+                attributeId: undefined,
+                noteId: newNote.noteId
+            });
+
+            // if relation points to within the duplicated tree then replace the target to the duplicated note
+            // if it points outside of duplicated tree then keep the original target
+            if (attr.type === 'relation' && attr.value in noteIdMapping) {
+                attr.value = noteIdMapping[attr.value];
+            }
+
+            attr.save();
+        }
+
+        for (const childBranch of origNote.getChildBranches()) {
+            duplicateSubtreeInner(childBranch.getNote(), childBranch, newNote.noteId, noteIdMapping);
+        }
+        return newNote;
+    }
 
     const existingNote = becca.notes[newNoteId];
 
-    if (existingNote.title !== undefined) { // checking that it's not just note's skeleton created because of Branch above
+    if (existingNote && existingNote.title !== undefined) { // checking that it's not just note's skeleton created because of Branch above
         // note has multiple clones and was already created from another placement in the tree
         // so a branch is all we need for this clone
         return {
             note: existingNote,
-            branch: newBranch
+            branch: createDuplicatedBranch()
         }
     }
-
-    const newNote = new Note(origNote);
-    newNote.noteId = newNoteId;
-    newNote.dateCreated = dateUtils.localNowDateTime();
-    newNote.utcDateCreated = dateUtils.utcNowDateTime();
-    newNote.save();
-
-    let content = origNote.getContent();
-
-    if (['text', 'relation-map', 'search'].includes(origNote.type)) {
-        // fix links in the content
-        content = replaceByMap(content, noteIdMapping);
-    }
-
-    newNote.setContent(content);
-
-    for (const attribute of origNote.getOwnedAttributes()) {
-        const attr = new Attribute(attribute);
-        attr.attributeId = undefined; // force creation of new attribute
-        attr.noteId = newNote.noteId;
-
-        // if relation points to within the duplicated tree then replace the target to the duplicated note
-        // if it points outside of duplicated tree then keep the original target
-        if (attr.type === 'relation' && attr.value in noteIdMapping) {
-            attr.value = noteIdMapping[attr.value];
+    else {
+        return {
+            // order here is important, note needs to be created first to not mess up the becca
+            note: createDuplicatedNote(),
+            branch: createDuplicatedBranch()
         }
-
-        attr.save();
     }
-
-    for (const childBranch of origNote.getChildBranches()) {
-        duplicateSubtreeInner(childBranch.getNote(), childBranch, newNote.noteId, noteIdMapping);
-    }
-
-    return {
-        note: newNote,
-        branch: newBranch
-    };
 }
 
 function getNoteIdMapping(origNote) {
@@ -879,5 +917,6 @@ module.exports = {
     duplicateSubtreeWithoutRoot,
     getUndeletedParentBranchIds,
     triggerNoteTitleChanged,
-    eraseDeletedNotesNow
+    eraseDeletedNotesNow,
+    eraseNotesWithDeleteId
 };

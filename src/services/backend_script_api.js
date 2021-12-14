@@ -58,21 +58,21 @@ function BackendScriptApi(currentNote, apiParams) {
      * @param {string} noteId
      * @returns {Note|null}
      */
-    this.getNote = becca.getNote;
+    this.getNote = noteId => becca.getNote(noteId);
 
     /**
      * @method
      * @param {string} branchId
      * @returns {Branch|null}
      */
-    this.getBranch = becca.getBranch;
+    this.getBranch = branchId => becca.getBranch(branchId);
 
     /**
      * @method
      * @param {string} attributeId
      * @returns {Attribute|null}
      */
-    this.getAttribute = becca.getAttribute;
+    this.getAttribute = attributeId => becca.getAttribute(attributeId);
 
     /**
      * This is a powerful search method - you can search by attributes and their values, e.g.:
@@ -352,7 +352,7 @@ function BackendScriptApi(currentNote, apiParams) {
      * @method
      * @param {string} parentNoteId - this note's child notes will be sorted
      */
-    this.sortNotesByTitle = treeService.sortNotesByTitle;
+    this.sortNotesByTitle = parentNoteId => treeService.sortNotes(parentNoteId);
 
     /**
      * This method finds note by its noteId and prefix and either sets it to the given parentNoteId

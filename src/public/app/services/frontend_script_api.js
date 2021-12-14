@@ -39,11 +39,23 @@ function FrontendScriptApi(startNote, currentNote, originEntity = null, $contain
     /** @property {CollapsibleWidget} */
     this.CollapsibleWidget = CollapsibleWidget;
 
-    /** @property {NoteContextAwareWidget} */
+    /**
+     * @property {NoteContextAwareWidget}
+     * @deprecated use NoteContextAwareWidget instead
+     */
     this.TabAwareWidget = NoteContextAwareWidget;
 
-    /** @property {NoteContextCachingWidget} */
+    /** @property {NoteContextAwareWidget} */
+    this.NoteContextAwareWidget = NoteContextAwareWidget;
+
+    /**
+     * @property {NoteContextCachingWidget}
+     * @deprecated use NoteContextCachingWidget instead
+     */
     this.TabCachingWidget = NoteContextCachingWidget;
+
+    /** @property {NoteContextAwareWidget} */
+    this.NoteContextCachingWidget = NoteContextCachingWidget;
 
     /** @property {BasicWidget} */
     this.BasicWidget = BasicWidget;
@@ -301,6 +313,7 @@ function FrontendScriptApi(startNote, currentNote, originEntity = null, $contain
      * @param {object} [params]
      * @param {boolean} [params.showTooltip=true] - enable/disable tooltip on the link
      * @param {boolean} [params.showNotePath=false] - show also whole note's path as part of the link
+     * @param {boolean} [params.showNoteIcon=false] - show also note icon before the title
      * @param {string} [title=] - custom link tile with note's title as default
      */
     this.createNoteLink = linkService.createNoteLink;
@@ -383,6 +396,15 @@ function FrontendScriptApi(startNote, currentNote, originEntity = null, $contain
      * @return {Promise<NoteShort>}
      */
     this.getDateNote = dateNotesService.getDateNote;
+
+    /**
+     * Returns date-note for the first date of the week of the given date. If it doesn't exist, it is automatically created.
+     *
+     * @method
+     * @param {string} date - e.g. "2019-04-29"
+     * @return {Promise<NoteShort>}
+     */
+     this.getWeekNote = dateNotesService.getWeekNote;
 
     /**
      * Returns month-note. If it doesn't exist, it is automatically created.

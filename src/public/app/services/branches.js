@@ -74,8 +74,16 @@ async function deleteNotes(branchIdsToDelete) {
         return false;
     }
 
-    const deleteNotesDialog = await import("../dialogs/delete_notes.js");
-    const {proceed, deleteAllClones} = await deleteNotesDialog.showDialog(branchIdsToDelete);
+    let proceed, deleteAllClones, eraseNotes;
+
+    if (utils.isMobile()) {
+        proceed = true;
+        deleteAllClones = false;
+    }
+    else {
+        const deleteNotesDialog = await import("../dialogs/delete_notes.js");
+        ({proceed, deleteAllClones, eraseNotes} = await deleteNotesDialog.showDialog(branchIdsToDelete));
+    }
 
     if (!proceed) {
         return false;
@@ -89,7 +97,7 @@ async function deleteNotes(branchIdsToDelete) {
         counter++;
 
         const last = counter === branchIdsToDelete.length;
-        const query = `?taskId=${taskId}&last=${last ? 'true' : 'false'}`;
+        const query = `?taskId=${taskId}&eraseNotes=${eraseNotes ? 'true' : 'false'}&last=${last ? 'true' : 'false'}`;
 
         const branch = froca.getBranch(branchIdToDelete);
 
@@ -99,6 +107,10 @@ async function deleteNotes(branchIdsToDelete) {
         else {
             await server.remove(`branches/${branchIdToDelete}` + query);
         }
+    }
+
+    if (eraseNotes) {
+        utils.reloadFrontendApp("erasing notes requires reload");
     }
 
     return true;
@@ -120,7 +132,7 @@ async function moveNodeUpInHierarchy(node) {
 
     if (!hoistedNoteService.isTopLevelNode(node) && node.getParent().getChildren().length <= 1) {
         node.getParent().folder = false;
-        node.getParent().getTitle();
+        node.getParent().renderTitle();
     }
 }
 

@@ -168,7 +168,7 @@ const STRING_MIME_TYPES = [
 
 function isStringNote(type, mime) {
     // render and book are string note in the sense that they are expected to contain empty string
-    return ["text", "code", "relation-map", "search", "render", "book"].includes(type)
+    return ["text", "code", "relation-map", "search", "render", "book", "mermaid"].includes(type)
         || mime.startsWith('text/')
         || STRING_MIME_TYPES.includes(mime);
 }
@@ -264,7 +264,7 @@ function timeLimit(promise, limitMs, errorMessage) {
 
             res(result);
         })
-        .catch(error => rej(error));
+            .catch(error => rej(error));
 
         setTimeout(() => {
             if (!resolved) {
@@ -288,6 +288,18 @@ function deferred() {
 
         return promise;
     })();
+}
+
+function removeDiacritic(str) {
+    return str.normalize("NFD").replace(/\p{Diacritic}/gu, "");
+}
+
+function normalize(str) {
+    return removeDiacritic(str).toLowerCase();
+}
+
+function filterAttributeName(name) {
+    return name.replace(/[^\p{L}\p{N}_:]/ug, "");
 }
 
 module.exports = {
@@ -321,5 +333,8 @@ module.exports = {
     removeTextFileExtension,
     formatDownloadTitle,
     timeLimit,
-    deferred
+    deferred,
+    removeDiacritic,
+    normalize,
+    filterAttributeName
 };

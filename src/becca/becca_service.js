@@ -86,6 +86,10 @@ function getNoteTitle(childNoteId, parentNoteId) {
 }
 
 function getNoteTitleArrayForPath(notePathArray) {
+    if (!notePathArray || !Array.isArray(notePathArray)) {
+        throw new Error(`${notePathArray} is not an array.`);
+    }
+
     if (notePathArray.length === 1 && notePathArray[0] === cls.getHoistedNoteId()) {
         return [getNoteTitle(cls.getHoistedNoteId())];
     }
@@ -121,7 +125,7 @@ function getNoteTitleForPath(notePathArray) {
 
 /**
  * Returns notePath for noteId from cache. Note hoisting is respected.
- * Archived notes are also returned, but non-archived paths are preferred if available
+ * Archived (and hidden) notes are also returned, but non-archived paths are preferred if available
  * - this means that archived paths is returned only if there's no non-archived path
  * - you can check whether returned path is archived using isArchived
  */
@@ -131,12 +135,12 @@ function getSomePath(note, path = []) {
         || getSomePathInner(note, path, false);
 }
 
-function getSomePathInner(note, path, respectHoistng) {
-    if (note.noteId === 'root') {
+function getSomePathInner(note, path, respectHoisting) {
+    if (note.isRoot()) {
         path.push(note.noteId);
         path.reverse();
 
-        if (respectHoistng && !path.includes(cls.getHoistedNoteId())) {
+        if (respectHoisting && !path.includes(cls.getHoistedNoteId())) {
             return false;
         }
 
@@ -145,11 +149,13 @@ function getSomePathInner(note, path, respectHoistng) {
 
     const parents = note.parents;
     if (parents.length === 0) {
+        console.log(`Note ${note.noteId} - "${note.title}" has no parents.`);
+
         return false;
     }
 
     for (const parentNote of parents) {
-        const retPath = getSomePathInner(parentNote, path.concat([note.noteId]), respectHoistng);
+        const retPath = getSomePathInner(parentNote, path.concat([note.noteId]), respectHoisting);
 
         if (retPath) {
             return retPath;
@@ -171,11 +177,20 @@ function getNotePath(noteId) {
 
     if (retPath) {
         const noteTitle = getNoteTitleForPath(retPath);
-        const parentNote = note.parents[0];
+
+        let branchId;
+
+        if (note.isRoot()) {
+            branchId = 'root';
+        }
+        else {
+            const parentNote = note.parents[0];
+            branchId = becca.getBranchFromChildAndParent(noteId, parentNote.noteId).branchId;
+        }
 
         return {
             noteId: noteId,
-            branchId: becca.getBranchFromChildAndParent(noteId, parentNote.noteId).branchId,
+            branchId: branchId,
             title: noteTitle,
             notePath: retPath,
             path: retPath.join('/')
