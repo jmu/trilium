@@ -41,8 +41,6 @@ function validateParentChild(parentNoteId, childNoteId, branchId = null) {
 
     const existing = getExistingBranch(parentNoteId, childNoteId);
 
-    console.log("BBBB", existing);
-
     if (existing && (branchId === null || existing.branchId !== branchId)) {
         const parentNote = becca.getNote(parentNoteId);
         const childNote = becca.getNote(childNoteId);
@@ -153,10 +151,6 @@ function sortNotes(parentNoteId, customSortBy = 'title', reverse = false, folder
 
             const topAEl = fetchValue(a, 'top');
             const topBEl = fetchValue(b, 'top');
-
-            console.log(a.title, topAEl);
-            console.log(b.title, topBEl);
-            console.log("comp", compare(topAEl, topBEl) && !reverse);
 
             if (topAEl !== topBEl) {
                 // since "top" should not be reversible, we'll reverse it once more to nullify this effect

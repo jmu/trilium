@@ -29,17 +29,18 @@
     <div id="main">
         <% if (note.parents[0].noteId !== 'share' && note.parents.length !== 0) { %>
             <nav id="parentLink">
-                parent: <a href="<%= note.parents[0].noteId %>"
+                parent: <a href="<%= note.parents[0].shareId %>"
                            class="type-<%= note.parents[0].type %>"><%= note.parents[0].title %></a>
             </nav>
         <% } %>
 
         <h1 id="title"><%= note.title %></h1>
 
-        <% if (note.type === 'book') { %>
-        <% } else if (isEmpty) { %>
-            <p>This note has no content.</p>
-        <% } else { %>
+        <% if (note.hasLabel("pageUrl")) { %>
+            <div id="noteClippedFrom">This note was originally clipped from <a href="<%= note.getLabelValue("pageUrl") %>"><%= note.getLabelValue("pageUrl") %></a></div>
+        <% } %>
+
+        <% if (!isEmpty) { %>
             <div id="content" class="type-<%= note.type %><% if (note.type === 'text') { %> ck-content<% } %>">
                 <%- content %>
             </div>
@@ -61,6 +62,8 @@
                     <% } %>
                 </ul>
             </nav>
+        <% } else if (isEmpty) { %>
+            <p>This note has no content.</p>
         <% } %>
     </div>
 

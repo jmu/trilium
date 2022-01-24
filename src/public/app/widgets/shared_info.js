@@ -13,7 +13,7 @@ const TPL = `
         }
     </style>
     
-    <span class="share-text"></span> <a class="share-link external"></a>. For help visit <a href="https://github.com/zadam/trilium/wiki/Sharing">wiki</a>.
+    <span class="shared-text"></span> <a class="shared-link external"></a>. For help visit <a href="https://github.com/zadam/trilium/wiki/Sharing">wiki</a>.
 </div>`;
 
 export default class SharedInfoWidget extends NoteContextAwareWidget {
@@ -23,8 +23,8 @@ export default class SharedInfoWidget extends NoteContextAwareWidget {
 
     doRender() {
         this.$widget = $(TPL);
-        this.$shareLink = this.$widget.find(".share-link");
-        this.$shareText = this.$widget.find(".share-text");
+        this.$sharedLink = this.$widget.find(".shared-link");
+        this.$sharedText = this.$widget.find(".shared-text");
         this.contentSized();
     }
 
@@ -32,18 +32,26 @@ export default class SharedInfoWidget extends NoteContextAwareWidget {
         const syncServerHost = options.get("syncServerHost");
         let link;
 
-        const shareId = note.getOwnedLabelValue('shareAlias') || note.noteId;
+        const shareId = this.getShareId(note);
 
         if (syncServerHost) {
             link = syncServerHost + "/share/" + shareId;
-            this.$shareText.text("This note is shared publicly on");
+            this.$sharedText.text("This note is shared publicly on");
         }
         else {
             link = location.protocol + '//' + location.host + location.pathname + "share/" + shareId;
-            this.$shareText.text("This note is shared locally on");
+            this.$sharedText.text("This note is shared locally on");
         }
 
-        this.$shareLink.attr("href", link).text(link);
+        this.$sharedLink.attr("href", link).text(link);
+    }
+
+    getShareId(note) {
+        if (note.hasOwnedLabel('shareRoot')) {
+            return '';
+        }
+
+        return note.getOwnedLabelValue('shareAlias') || note.noteId;
     }
 
     entitiesReloadedEvent({loadResults}) {

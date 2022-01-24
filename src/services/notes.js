@@ -102,8 +102,13 @@ function createNewNote(params) {
         throw new Error(`Parent note "${params.parentNoteId}" not found.`);
     }
 
-    if (!params.title || params.title.trim().length === 0) {
-        throw new Error(`Note title must not be empty`);
+    if (params.title === null || params.title === undefined) {
+        // empty title is allowed since it's possible to create such in the UI
+        throw new Error(`Note title must be set`);
+    }
+
+    if (params.content === null || params.content === undefined) {
+        throw new Error(`Note content must be set`);
     }
 
     return sql.transactional(() => {
@@ -519,7 +524,7 @@ function updateNote(noteId, noteUpdates) {
 
 /**
  * @param {Branch} branch
- * @param {string} deleteId
+ * @param {string|null} deleteId
  * @param {TaskContext} taskContext
  *
  * @return {boolean} - true if note has been deleted, false otherwise
@@ -566,6 +571,17 @@ function deleteBranch(branch, deleteId, taskContext) {
     }
     else {
         return false;
+    }
+}
+
+/**
+ * @param {Note} note
+ * @param {string|null} deleteId
+ * @param {TaskContext} taskContext
+ */
+function deleteNote(note, deleteId, taskContext) {
+    for (const branch of note.getParentBranches()) {
+        deleteBranch(branch, deleteId, taskContext);
     }
 }
 
@@ -914,6 +930,7 @@ module.exports = {
     createNewNoteWithTarget,
     updateNote,
     deleteBranch,
+    deleteNote,
     undeleteNote,
     protectNoteRecursively,
     scanForLinks,
