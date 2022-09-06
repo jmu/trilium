@@ -11,6 +11,8 @@ const AbstractEntity = require("./abstract_entity");
  *
  * The format user is presented with is "<etapiTokenId>_<tokenHash>". This is also called "authToken" to distinguish it
  * from tokenHash and token.
+ *
+ * @extends AbstractEntity
  */
 class EtapiToken extends AbstractEntity {
     static get entityName() { return "etapi_tokens"; }
@@ -42,7 +44,9 @@ class EtapiToken extends AbstractEntity {
         /** @type {boolean} */
         this.isDeleted = !!row.isDeleted;
 
-        this.becca.etapiTokens[this.etapiTokenId] = this;
+        if (this.etapiTokenId) {
+            this.becca.etapiTokens[this.etapiTokenId] = this;
+        }
     }
 
     init() {

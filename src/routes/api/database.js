@@ -6,8 +6,8 @@ const backupService = require('../../services/backup');
 const anonymizationService = require('../../services/anonymization');
 const consistencyChecksService = require('../../services/consistency_checks');
 
-async function anonymize() {
-    return await anonymizationService.createAnonymizedCopy();
+async function anonymize(req) {
+    return await anonymizationService.createAnonymizedCopy(req.params.type);
 }
 
 async function backupDatabase() {
@@ -22,6 +22,16 @@ function vacuumDatabase() {
     log.info("Database has been vacuumed.");
 }
 
+function checkIntegrity() {
+    const results = sql.getRows("PRAGMA integrity_check");
+
+    log.info("Integrity check result: " + JSON.stringify(results));
+
+    return {
+        results
+    };
+}
+
 function findAndFixConsistencyIssues() {
     consistencyChecksService.runOnDemandChecks(true);
 }
@@ -30,5 +40,6 @@ module.exports = {
     backupDatabase,
     vacuumDatabase,
     findAndFixConsistencyIssues,
-    anonymize
+    anonymize,
+    checkIntegrity
 };

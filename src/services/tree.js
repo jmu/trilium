@@ -204,7 +204,11 @@ function sortNotesIfNeeded(parentNoteId) {
         return;
     }
 
-    sortNotes(parentNoteId, sortedLabel.value);
+    const sortReversed = parentNote.getLabelValue('sortDirection')?.toLowerCase() === "desc";
+    const sortFoldersFirstLabel = parentNote.getLabel('sortFoldersFirst');
+    const sortFoldersFirst = sortFoldersFirstLabel && sortFoldersFirstLabel.value.toLowerCase() !== "false";
+
+    sortNotes(parentNoteId, sortedLabel.value, sortReversed, sortFoldersFirst);
 }
 
 /**
@@ -223,12 +227,15 @@ function setNoteToParent(noteId, prefix, parentNoteId) {
 
     if (branch) {
         if (!parentNoteId) {
+            log.info(`Removing note ${noteId} from parent ${parentNoteId}`);
+
             branch.markAsDeleted();
         }
         else {
-            branch.parentNoteId = parentNoteId;
-            branch.prefix = prefix;
-            branch.save();
+            const newBranch = branch.createClone(parentNoteId);
+            newBranch.save();
+
+            branch.markAsDeleted();
         }
     }
     else if (parentNoteId) {

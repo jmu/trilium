@@ -88,12 +88,24 @@ function checkEtapiToken(req, res, next) {
 function reject(req, res, message) {
     log.info(`${req.method} ${req.path} rejected with 401 ${message}`);
 
-    res.status(401).send(message);
+    res.setHeader("Content-Type", "text/plain")
+        .status(401)
+        .send(message);
 }
 
 function checkCredentials(req, res, next) {
     if (!sqlInit.isDbInitialized()) {
-        res.status(400).send('Database is not initialized yet.');
+        res.setHeader("Content-Type", "text/plain")
+            .status(400)
+            .send('Database is not initialized yet.');
+        return;
+    }
+
+    if (!passwordService.isPasswordSet()) {
+        res.setHeader("Content-Type", "text/plain")
+            .status(400)
+            .send('Password has not been set yet. Please set a password and repeat the action');
+        return;
     }
 
     const header = req.headers['trilium-cred'] || '';
@@ -103,7 +115,9 @@ function checkCredentials(req, res, next) {
     // username is ignored
 
     if (!passwordEncryptionService.verifyPassword(password)) {
-        res.status(401).send('Incorrect password');
+        res.setHeader("Content-Type", "text/plain")
+            .status(401)
+            .send('Incorrect password');
     }
     else {
         next();

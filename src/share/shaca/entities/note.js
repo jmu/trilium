@@ -6,6 +6,9 @@ const AbstractEntity = require('./abstract_entity');
 
 const LABEL = 'label';
 const RELATION = 'relation';
+const CREDENTIALS = 'shareCredentials';
+
+const isCredentials = attr => attr.type === 'label' && attr.name === CREDENTIALS;
 
 class Note extends AbstractEntity {
     constructor([noteId, title, type, mime, utcDateModified]) {
@@ -58,8 +61,19 @@ class Note extends AbstractEntity {
         return this.children;
     }
 
+    getVisibleChildNotes() {
+        return this.getChildBranches()
+            .filter(branch => !branch.isHidden)
+            .map(branch => branch.getNote())
+            .filter(childNote => !childNote.hasLabel('shareHiddenFromTree') && !childNote.isProtected);
+    }
+
     hasChildren() {
         return this.children && this.children.length > 0;
+    }
+
+    hasVisibleChildren() {
+        return this.getVisibleChildNotes().length > 0;
     }
 
     getChildBranches() {
@@ -104,17 +118,23 @@ class Note extends AbstractEntity {
         this.__getAttributes([]);
 
         if (type && name) {
-            return this.__attributeCache.filter(attr => attr.type === type && attr.name === name);
+            return this.__attributeCache.filter(attr => attr.type === type && attr.name === name && !isCredentials(attr));
         }
         else if (type) {
-            return this.__attributeCache.filter(attr => attr.type === type);
+            return this.__attributeCache.filter(attr => attr.type === type && !isCredentials(attr));
         }
         else if (name) {
-            return this.__attributeCache.filter(attr => attr.name === name);
+            return this.__attributeCache.filter(attr => attr.name === name && !isCredentials(attr));
         }
         else {
-            return this.__attributeCache.slice();
+            return this.__attributeCache.filter(attr => !isCredentials(attr));
         }
+    }
+
+    getCredentials() {
+        this.__getAttributes([]);
+
+        return this.__attributeCache.filter(isCredentials);
     }
 
     __getAttributes(path) {

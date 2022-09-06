@@ -22,8 +22,7 @@ async function mouseEnterHandler() {
     const $link = $(this);
 
     if ($link.hasClass("no-tooltip-preview")
-        || $link.hasClass("disabled")
-        || $link.attr("data-action") === 'note-revision') {
+        || $link.hasClass("disabled")) {
         return;
     }
 
@@ -60,7 +59,9 @@ async function mouseEnterHandler() {
         $(this).tooltip({
             delay: {"show": 300, "hide": 100},
             container: 'body',
-            placement: 'auto',
+            // https://github.com/zadam/trilium/issues/2794 https://github.com/zadam/trilium/issues/2988
+            // with bottom this flickering happens a bit less
+            placement: 'bottom',
             trigger: 'manual',
             boundary: 'window',
             title: html,

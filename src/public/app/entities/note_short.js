@@ -3,6 +3,7 @@ import noteAttributeCache from "../services/note_attribute_cache.js";
 import ws from "../services/ws.js";
 import options from "../services/options.js";
 import froca from "../services/froca.js";
+import protectedSessionHolder from "../services/protected_session_holder.js";
 
 const LABEL = 'label';
 const RELATION = 'relation';
@@ -16,7 +17,9 @@ const NOTE_TYPE_ICONS = {
     "relation-map": "bx bx-map-alt",
     "book": "bx bx-book",
     "note-map": "bx bx-map-alt",
-    "mermaid": "bx bx-selection"
+    "mermaid": "bx bx-selection",
+    "canvas": "bx bx-pen",
+    "web-view": "bx bx-globe-alt"
 };
 
 /**
@@ -124,7 +127,7 @@ class NoteShort {
             return JSON.parse(content);
         }
         catch (e) {
-            console.log(`Cannot parse content of note ${this.noteId}: `, e.message);
+            console.log(`Cannot parse content of note '${this.noteId}': `, e.message);
 
             return null;
         }
@@ -261,7 +264,11 @@ class NoteShort {
                 const templateNote = this.froca.notes[templateAttr.value];
 
                 if (templateNote && templateNote.noteId !== this.noteId) {
-                    attrArrs.push(templateNote.__getCachedAttributes(newPath));
+                    attrArrs.push(
+                        templateNote.__getCachedAttributes(newPath)
+                            // template attr is used as a marker for templates, but it's not meant to be inherited
+                            .filter(attr => !(attr.type === 'label' && attr.name === 'template'))
+                    );
                 }
             }
 
@@ -634,13 +641,18 @@ class NoteShort {
             return [];
         }
 
-        return this.getAttributes()
+        const promotedAttrs = this.getAttributes()
             .filter(attr => attr.isDefinition())
             .filter(attr => {
                 const def = attr.getDefinition();
 
                 return def && def.isPromoted;
             });
+
+        // attrs are not resorted if position changes after initial load
+        promotedAttrs.sort((a, b) => a.position < b.position ? -1 : 1);
+
+        return promotedAttrs;
     }
 
     hasAncestor(ancestorNoteId, visitedNoteIds = null) {
@@ -800,6 +812,10 @@ class NoteShort {
         }
 
         return false;
+    }
+
+    isContentAvailable() {
+        return !this.isProtected || protectedSessionHolder.isProtectedSessionAvailable()
     }
 }
 

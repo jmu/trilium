@@ -17,11 +17,12 @@ const TPL = `<div class="mermaid-widget">
         .mermaid-render {
             overflow: auto;
             height: 100%;
+            text-align: center;
         }
     </style>
 
     <div class="mermaid-error alert alert-warning">
-        <p><strong>The diagram could not displayed. See <a href="https://mermaid-js.github.io/mermaid/#/flowchart?id=graph">help and examples</a>.</strong></p>
+        <p><strong>The diagram could not be displayed. See <a href="https://mermaid-js.github.io/mermaid/#/flowchart?id=graph">help and examples</a>.</strong></p>
         <p class="error-content"></p>
     </div>
 
@@ -32,7 +33,9 @@ let idCounter = 1;
 
 export default class MermaidWidget extends NoteContextAwareWidget {
     isEnabled() {
-        return super.isEnabled() && this.note && this.note.type === 'mermaid';
+        return super.isEnabled()
+            && this.note?.type === 'mermaid'
+            && this.note.isContentAvailable();
     }
 
     doRender() {
@@ -60,18 +63,29 @@ export default class MermaidWidget extends NoteContextAwareWidget {
             gantt: { useMaxWidth: false },
             "class": { useMaxWidth: false },
             state: { useMaxWidth: false },
-            pie: { useMaxWidth: false },
+            pie: { useMaxWidth: true },
             journey: { useMaxWidth: false },
             git: { useMaxWidth: false },
         });
 
-        const noteComplement = await froca.getNoteComplement(note.noteId);
-        const content = noteComplement.content || "";
-
         this.$display.empty();
 
+        const wheelZoomLoaded = libraryLoader.requireLibrary(libraryLoader.WHEEL_ZOOM);
+
         try {
-            mermaid.mermaidAPI.render('mermaid-graph-' + idCounter++, content, content => this.$display.html(content));
+            const renderedSvg = await this.renderSvg();
+            this.$display.html(renderedSvg);
+
+            await wheelZoomLoaded;
+
+            this.$display.attr("id", 'mermaid-render-' + idCounter);
+
+            WZoom.create('#mermaid-render-' + idCounter, {
+                type: 'html',
+                maxScale: 10,
+                speed: 20,
+                zoomOnClick: false
+            });
 
             this.$errorContainer.hide();
         } catch (e) {
@@ -80,9 +94,43 @@ export default class MermaidWidget extends NoteContextAwareWidget {
         }
     }
 
+    renderSvg() {
+        return new Promise(async res => {
+            idCounter++;
+
+            const noteComplement = await froca.getNoteComplement(this.noteId);
+            const content = noteComplement.content || "";
+
+            mermaid.mermaidAPI.render('mermaid-graph-' + idCounter, content, res);
+        });
+    }
+
     async entitiesReloadedEvent({loadResults}) {
         if (loadResults.isNoteContentReloaded(this.noteId)) {
             await this.refresh();
         }
+    }
+
+    async exportMermaidEvent({ntxId}) {
+        if (!this.isNoteContext(ntxId)) {
+            return;
+        }
+
+        const renderedSvg = await this.renderSvg();
+
+        this.download(this.note.title + ".svg", renderedSvg);
+    }
+
+    download(filename, text) {
+        const element = document.createElement('a');
+        element.setAttribute('href', 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(text));
+        element.setAttribute('download', filename);
+
+        element.style.display = 'none';
+        document.body.appendChild(element);
+
+        element.click();
+
+        document.body.removeChild(element);
     }
 }

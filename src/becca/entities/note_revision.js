@@ -11,13 +11,15 @@ const AbstractEntity = require("./abstract_entity");
 /**
  * NoteRevision represents snapshot of note's title and content at some point in the past.
  * It's used for seamless note versioning.
+ *
+ * @extends AbstractEntity
  */
 class NoteRevision extends AbstractEntity {
     static get entityName() { return "note_revisions"; }
     static get primaryKeyName() { return "noteRevisionId"; }
     static get hashedProperties() { return ["noteRevisionId", "noteId", "title", "isProtected", "dateLastEdited", "dateCreated", "utcDateLastEdited", "utcDateCreated", "utcDateModified"]; }
 
-    constructor(row) {
+    constructor(row, titleDecrypted = false) {
         super();
 
         /** @type {string} */
@@ -45,13 +47,10 @@ class NoteRevision extends AbstractEntity {
         /** @type {number} */
         this.contentLength = row.contentLength;
 
-        if (this.isProtected) {
-            if (protectedSessionService.isProtectedSessionAvailable()) {
-                this.title = protectedSessionService.decryptString(this.title);
-            }
-            else {
-                this.title = "[protected]";
-            }
+        if (this.isProtected && !titleDecrypted) {
+            this.title = protectedSessionService.isProtectedSessionAvailable()
+                ? protectedSessionService.decryptString(this.title)
+                : "[protected]";
         }
     }
 
@@ -66,8 +65,8 @@ class NoteRevision extends AbstractEntity {
 
     /*
      * Note revision content has quite special handling - it's not a separate entity, but a lazily loaded
-     * part of NoteRevision entity with it's own sync. Reason behind this hybrid design is that
-     * content can be quite large and it's not necessary to load it / fill memory for any note access even
+     * part of NoteRevision entity with its own sync. Reason behind this hybrid design is that
+     * content can be quite large, and it's not necessary to load it / fill memory for any note access even
      * if we don't need a content, especially for bulk operations like search.
      *
      * This is the same approach as is used for Note's content.

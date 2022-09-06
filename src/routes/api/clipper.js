@@ -43,7 +43,7 @@ function getClipperInboxNote() {
 }
 
 function addClipping(req) {
-    const {title, content, pageUrl, images} = req.body;
+    let {title, content, pageUrl, images} = req.body;
 
     const clipperInbox = getClipperInboxNote();
 
@@ -56,6 +56,8 @@ function addClipping(req) {
             content: '',
             type: 'text'
         }).note;
+
+        pageUrl = htmlSanitizer.sanitize(pageUrl);
 
         clippingNote.setLabel('clipType', 'clippings');
         clippingNote.setLabel('pageUrl', pageUrl);
@@ -89,9 +91,13 @@ function createNote(req) {
         type: 'text'
     });
 
+    clipType = htmlSanitizer.sanitize(clipType);
+
     note.setLabel('clipType', clipType);
 
     if (pageUrl) {
+        pageUrl = htmlSanitizer.sanitize(pageUrl);
+
         note.setLabel('pageUrl', pageUrl);
         note.setLabel('iconClass', 'bx bx-globe');
     }
@@ -138,11 +144,14 @@ function processContent(images, note, content) {
                 value: imageNote.noteId
             }).save();
 
-            console.log(`Replacing ${imageId} with ${url}`);
+            log.info(`Replacing '${imageId}' with '${url}' in note '${note.noteId}'`);
 
             rewrittenContent = utils.replaceAll(rewrittenContent, imageId, url);
         }
     }
+
+    // fallback if parsing/downloading images fails for some reason on the extension side (
+    rewrittenContent = noteService.downloadImages(note.noteId, rewrittenContent);
 
     return rewrittenContent;
 }

@@ -33,7 +33,7 @@ function isDbInitialized() {
 async function initDbConnection() {
     if (!isDbInitialized()) {
         log.info(`DB not initialized, please visit setup page` +
-            (utils.isElectron() ? '' : ` - http://[your-server-host]:${await port} to see instructions on how to initialize Trilium.`));
+            (utils.isElectron() ? '' : ` - http://[your-server-host]:${port} to see instructions on how to initialize Trilium.`));
 
         return;
     }
@@ -151,6 +151,15 @@ function setDbAsInitialized() {
     }
 }
 
+function optimize() {
+    log.info("Optimizing database");
+    const start = Date.now();
+
+    sql.execute("PRAGMA optimize");
+
+    log.info(`Optimization finished in ${Date.now() - start}ms.`);
+}
+
 dbReady.then(() => {
     if (config.General && config.General.noBackup === true) {
         log.info("Disabling scheduled backups.");
@@ -162,9 +171,18 @@ dbReady.then(() => {
 
     // kickoff first backup soon after start up
     setTimeout(() => require('./backup').regularBackup(), 5 * 60 * 1000);
+
+    // optimize is usually inexpensive no-op so running it semi-frequently is not a big deal
+    setTimeout(() => optimize(), 60 * 60 * 1000);
+
+    setInterval(() => optimize(), 10 * 60 * 60 * 1000);
 });
 
-log.info("DB size: " + sql.getValue("SELECT page_count * page_size / 1000 as size FROM pragma_page_count(), pragma_page_size()") + " KB");
+function getDbSize() {
+    return sql.getValue("SELECT page_count * page_size / 1000 as size FROM pragma_page_count(), pragma_page_size()");
+}
+
+log.info(`DB size: ${getDbSize()} KB`);
 
 module.exports = {
     dbReady,
@@ -172,5 +190,6 @@ module.exports = {
     isDbInitialized,
     createInitialDatabase,
     createDatabaseForSync,
-    setDbAsInitialized
+    setDbAsInitialized,
+    getDbSize
 };

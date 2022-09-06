@@ -12,13 +12,13 @@ const sanitizeFilename = require('sanitize-filename');
 const noteRevisionService = require('./note_revisions');
 const isSvg = require('is-svg');
 const isAnimated = require('is-animated');
+const htmlSanitizer = require("./html_sanitizer");
 
 async function processImage(uploadBuffer, originalName, shrinkImageSwitch) {
     const compressImages = optionService.getOptionBool("compressImages");
     const origImageFormat = getImageType(uploadBuffer);
 
-    if (origImageFormat && ["webp", "svg", "gif"].includes(origImageFormat.ext)) {
-        // JIMP does not support webp at the moment: https://github.com/oliver-moran/jimp/issues/144
+    if (!origImageFormat || !["jpg", "png"].includes(origImageFormat.ext)) {
         shrinkImageSwitch = false;
     }
     else if (isAnimated(uploadBuffer)) {
@@ -26,9 +26,18 @@ async function processImage(uploadBuffer, originalName, shrinkImageSwitch) {
         shrinkImageSwitch = false;
     }
 
-    const finalImageBuffer = (compressImages && shrinkImageSwitch) ? await shrinkImage(uploadBuffer, originalName) : uploadBuffer;
+    let finalImageBuffer;
+    let imageFormat;
 
-    const imageFormat = getImageType(finalImageBuffer);
+    if (compressImages && shrinkImageSwitch) {
+        finalImageBuffer = await shrinkImage(uploadBuffer, originalName);
+        imageFormat = getImageType(finalImageBuffer);
+    } else {
+        finalImageBuffer = uploadBuffer;
+        imageFormat = origImageFormat || {
+            ext: 'dat'
+        };
+    }
 
     return {
         buffer: finalImageBuffer,
@@ -43,7 +52,9 @@ function getImageType(buffer) {
         }
     }
     else {
-        return imageType(buffer) || "jpg"; // optimistic JPG default
+        return imageType(buffer) || {
+            ext: "jpg"
+        }; // optimistic JPG default
     }
 }
 
@@ -56,10 +67,11 @@ function getImageMimeFromExtension(ext) {
 function updateImage(noteId, uploadBuffer, originalName) {
     log.info(`Updating image ${noteId}: ${originalName}`);
 
+    originalName = htmlSanitizer.sanitize(originalName);
+
     const note = becca.getNote(noteId);
 
-    noteRevisionService.createNoteRevision(note);
-    noteRevisionService.protectNoteRevisions(note);
+    note.saveNoteRevision();
 
     note.setLabel('originalFileName', originalName);
 
@@ -75,7 +87,7 @@ function updateImage(noteId, uploadBuffer, originalName) {
 }
 
 function saveImage(parentNoteId, uploadBuffer, originalName, shrinkImageSwitch, trimFilename = false) {
-    log.info(`Saving image ${originalName}`);
+    log.info(`Saving image ${originalName} into parent ${parentNoteId}`);
 
     if (trimFilename && originalName.length > 40) {
         // https://github.com/zadam/trilium/issues/2307

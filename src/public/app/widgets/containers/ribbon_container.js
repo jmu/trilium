@@ -186,11 +186,25 @@ export default class RibbonContainer extends NoteContextAwareWidget {
             const activeChild = this.getActiveRibbonWidget();
 
             if (activeChild && (refreshActiveTab || !wasAlreadyActive)) {
-                activeChild.handleEvent('noteSwitched', {noteContext: this.noteContext, notePath: this.notePath});
+                const handleEventPromise = activeChild.handleEvent('noteSwitched', {noteContext: this.noteContext, notePath: this.notePath});
+
+                if (refreshActiveTab) {
+                    if (handleEventPromise) {
+                        handleEventPromise.then(() => activeChild.focus?.());
+                    } else {
+                        activeChild.focus?.();
+                    }
+                }
             }
         } else {
             this.lastActiveComponentId = null;
         }
+    }
+
+    async noteSwitched() {
+        this.lastActiveComponentId = null;
+
+        await super.noteSwitched();
     }
 
     async refreshWithNote(note, noExplicitActivation = false) {

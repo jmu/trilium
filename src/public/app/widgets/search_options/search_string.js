@@ -7,7 +7,7 @@ const TPL = `
 <tr>
     <td class="title-column">Search string:</td>
     <td>
-        <input type="text" class="form-control search-string" placeholder="fulltext keywords, #tag = value ...">
+        <textarea class="form-control search-string" placeholder="fulltext keywords, #tag = value ..."></textarea>
     </td>
     <td class="button-column">
         <div class="dropdown help-dropdown">
@@ -46,6 +46,9 @@ export default class SearchString extends AbstractSearchOption {
         this.$searchString.on('input', () => this.spacedUpdate.scheduleUpdate());
 
         utils.bindElShortcut(this.$searchString, 'return', async () => {
+            // this also in effect disallows new lines in query string.
+            // on one hand this makes sense since search string is a label
+            // on the other hand it could be nice for structuring long search string. It's probably a niche case though.
             await this.spacedUpdate.updateNowIfNecessary();
 
             this.triggerCommand('refreshResults');
@@ -57,7 +60,7 @@ export default class SearchString extends AbstractSearchOption {
             await this.setAttribute('label', 'searchString', searchString);
 
             if (this.note.title.startsWith('Search: ')) {
-                await server.put(`notes/${this.note.noteId}/change-title`, {
+                await server.put(`notes/${this.note.noteId}/title`, {
                     title: 'Search: ' + (searchString.length < 30 ? searchString : `${searchString.substr(0, 30)}…`)
                 });
             }

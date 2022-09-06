@@ -2,8 +2,6 @@ const becca = require("../becca/becca");
 const eu = require("./etapi_utils");
 const mappers = require("./mappers");
 const Branch = require("../becca/entities/branch");
-const noteService = require("../services/notes");
-const TaskContext = require("../services/task_context");
 const entityChangesService = require("../services/entity_changes");
 const v = require("./validators");
 
@@ -71,7 +69,7 @@ function register(router) {
             return res.sendStatus(204);
         }
 
-        noteService.deleteBranch(branch, null, new TaskContext('no-progress-reporting'));
+        branch.deleteBranch();
 
         res.sendStatus(204);
     });

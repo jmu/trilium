@@ -65,7 +65,7 @@ async function resolveNotePathToSegments(notePath, hoistedNoteId = 'root', logEr
 
             if (!parents.length) {
                 if (logErrors) {
-                    ws.logError(`No parents found for ${childNoteId} (${child.title}) for path ${notePath}`);
+                    ws.logError(`No parents found for note ${childNoteId} (${child.title}) for path ${notePath}`);
                 }
 
                 return;
@@ -133,10 +133,6 @@ function getSomeNotePath(note, hoistedNotePath = 'root') {
     const notePath = getSomeNotePathSegments(note, hoistedNotePath);
 
     return notePath === null ? null : notePath.join('/');
-}
-
-async function sortAlphabetically(noteId) {
-    await server.put(`notes/${noteId}/sort`);
 }
 
 ws.subscribeToMessages(message => {
@@ -319,7 +315,6 @@ function parseNotePath(notePath) {
 }
 
 export default {
-    sortAlphabetically,
     resolveNotePath,
     resolveNotePathToSegments,
     getSomeNotePath,

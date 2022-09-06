@@ -7,7 +7,6 @@ const utils = require('../../services/utils');
 const log = require('../../services/log');
 const TaskContext = require('../../services/task_context');
 const fs = require('fs');
-const noteRevisionService = require("../../services/note_revisions");
 const becca = require("../../becca/becca");
 
 function getNote(req) {
@@ -53,11 +52,11 @@ function createNote(req) {
     };
 }
 
-function updateNote(req) {
-    const note = req.body;
-    const noteId = req.params.noteId;
+function updateNoteContent(req) {
+    const {content} = req.body;
+    const {noteId} = req.params;
 
-    return noteService.updateNote(noteId, note);
+    return noteService.updateNoteContent(noteId, content);
 }
 
 function deleteNote(req) {
@@ -73,7 +72,7 @@ function deleteNote(req) {
 
     const taskContext = TaskContext.getInstance(taskId, 'delete-notes');
 
-    noteService.deleteNote(note, deleteId, taskContext);
+    note.deleteNote(deleteId, taskContext);
 
     if (eraseNotes) {
         noteService.eraseNotesWithDeleteId(deleteId);
@@ -94,13 +93,13 @@ function undeleteNote(req) {
 
 function sortChildNotes(req) {
     const noteId = req.params.noteId;
-    const {sortBy, sortDirection} = req.body;
+    const {sortBy, sortDirection, foldersFirst} = req.body;
 
-    log.info(`Sorting ${noteId} children with ${sortBy} ${sortDirection}`);
+    log.info(`Sorting '${noteId}' children with ${sortBy} ${sortDirection}, foldersFirst=${foldersFirst}`);
 
     const reverse = sortDirection === 'desc';
 
-    treeService.sortNotes(noteId, sortBy, reverse);
+    treeService.sortNotes(noteId, sortBy, reverse, foldersFirst);
 }
 
 function protectNote(req) {
@@ -153,7 +152,10 @@ function getRelationMap(req) {
         .split(",")
         .map(token => token.trim());
 
-    console.log("displayRelations", displayRelations);
+    const hideRelationsVal = relationMapNote.getLabelValue('hideRelations');
+    const hideRelations = !hideRelationsVal ? [] : hideRelationsVal
+        .split(",")
+        .map(token => token.trim());
 
     const foundNoteIds = sql.getColumn(`SELECT noteId FROM notes WHERE isDeleted = 0 AND noteId IN (${questionMarks})`, noteIds);
     const notes = becca.getNotes(foundNoteIds);
@@ -163,7 +165,9 @@ function getRelationMap(req) {
 
         resp.relations = resp.relations.concat(note.getRelations()
             .filter(relation => !relation.isAutoLink() || displayRelations.includes(relation.name))
-            .filter(relation => displayRelations.length === 0 || displayRelations.includes(relation.name))
+            .filter(relation => displayRelations.length > 0
+                ? displayRelations.includes(relation.name)
+                : !hideRelations.includes(relation.name))
             .filter(relation => noteIds.includes(relation.value))
             .map(relation => ({
                 attributeId: relation.attributeId,
@@ -177,6 +181,7 @@ function getRelationMap(req) {
 
             if (def.inverseRelation) {
                 resp.inverseRelations[relationDefinition.getDefinedName()] = def.inverseRelation;
+                resp.inverseRelations[def.inverseRelation] = relationDefinition.getDefinedName();
             }
         }
     }
@@ -191,17 +196,17 @@ function changeTitle(req) {
     const note = becca.getNote(noteId);
 
     if (!note) {
-        return [404, `Note ${noteId} has not been found`];
+        return [404, `Note '${noteId}' has not been found`];
     }
 
     if (!note.isContentAvailable()) {
-        return [400, `Note ${noteId} is not available for change`];
+        return [400, `Note '${noteId}' is not available for change`];
     }
 
     const noteTitleChanged = note.title !== title;
 
     if (noteTitleChanged) {
-        noteService.saveNoteRevision(note);
+        noteService.saveNoteRevisionIfNeeded(note);
     }
 
     note.title = title;
@@ -284,12 +289,12 @@ function uploadModifiedFile(req) {
     const note = becca.getNote(noteId);
 
     if (!note) {
-        return [404, `Note ${noteId} has not been found`];
+        return [404, `Note '${noteId}' has not been found`];
     }
 
-    log.info(`Updating note ${noteId} with content from ${filePath}`);
+    log.info(`Updating note '${noteId}' with content from ${filePath}`);
 
-    noteRevisionService.createNoteRevision(note);
+    note.saveNoteRevision();
 
     const fileContent = fs.readFileSync(filePath);
 
@@ -310,14 +315,14 @@ function getBacklinkCount(req) {
     }
     else {
         return {
-            count: note.getTargetRelations().length
+            count: note.getTargetRelations().filter(note => !note.getNote().hasLabel('excludeFromNoteMap')).length
         };
     }
 }
 
 module.exports = {
     getNote,
-    updateNote,
+    updateNoteContent,
     deleteNote,
     undeleteNote,
     createNote,

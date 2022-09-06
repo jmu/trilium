@@ -7,6 +7,7 @@ const TaskContext = require("../services/task_context");
 const v = require("./validators");
 const searchService = require("../services/search/services/search");
 const SearchContext = require("../services/search/search_context");
+const zipExportService = require("../services/export/zip");
 
 function register(router) {
     eu.route(router, 'get', '/etapi/notes', (req, res, next) => {
@@ -46,7 +47,7 @@ function register(router) {
         'mime': [v.notNull, v.isString],
         'content': [v.notNull, v.isString],
         'notePosition': [v.notNull, v.isInteger],
-        'prefix': [v.notNull, v.isInteger],
+        'prefix': [v.notNull, v.isString],
         'isExpanded': [v.notNull, v.isBoolean],
         'noteId': [v.notNull, v.isValidEntityId],
         'branchId': [v.notNull, v.isValidEntityId],
@@ -98,7 +99,7 @@ function register(router) {
             return res.sendStatus(204);
         }
 
-        noteService.deleteNote(note, null, new TaskContext('no-progress-reporting'));
+        note.deleteNote(null, new TaskContext('no-progress-reporting'));
 
         res.sendStatus(204);
     });
@@ -122,6 +123,25 @@ function register(router) {
         note.setContent(req.body);
 
         return res.sendStatus(204);
+    });
+
+    eu.route(router, 'get' ,'/etapi/notes/:noteId/export', (req, res, next) => {
+        const note = eu.getAndCheckNote(req.params.noteId);
+        const format = req.query.format || "html";
+
+        if (!["html", "markdown"].includes(format)) {
+            throw new eu.EtapiError(400, "UNRECOGNIZED_EXPORT_FORMAT", `Unrecognized export format '${format}', supported values are 'html' (default) or 'markdown'`);
+        }
+
+        const taskContext = new TaskContext('no-progress-reporting');
+
+        // technically a branch is being exported (includes prefix), but it's such a minor difference yet usability pain
+        // (e.g. branchIds are not seen in UI), that we export "note export" instead.
+        const branch = note.getParentBranches()[0];
+
+        console.log(note.getParentBranches());
+
+        zipExportService.exportToZip(taskContext, branch, format, res);
     });
 }
 
@@ -162,7 +182,7 @@ function parseBoolean(obj, name) {
     return obj[name] === 'true';
 }
 
-function parseInteger(obj, name) {
+function parseOrderDirection(obj, name) {
     if (!(name in obj)) {
         return undefined;
     }
@@ -176,7 +196,7 @@ function parseInteger(obj, name) {
     return integer;
 }
 
-function parseOrderDirection(obj, name) {
+function parseInteger(obj, name) {
     if (!(name in obj)) {
         return undefined;
     }

@@ -7,6 +7,9 @@ body {
     --ck-color-text: var(--main-text-color);
     --ck-color-shadow-drop: var(--main-background-color);
     --ck-color-shadow-inner: var(--main-background-color);
+    --ck-color-table-caption-text: var(--main-text-color);
+    --ck-color-table-caption-background: var(--accented-background-color);
+    --ck-color-table-caption-highlighted-background: var(--accented-background-color);
 
     /* -- Overrides the default .ck-button class colors. ---------------------------------------- */
 
@@ -90,6 +93,10 @@ body {
     --ck-color-link-default: var(--link-color);
 
     --ck-color-table-focused-cell-background: var(--more-accented-background-color);
+
+    --ck-color-labeled-field-label-background: var(--accented-background-color);
+
+    --ck-color-editable-blur-selection: var(--accented-background-color);
 
     /* todo lists */
 

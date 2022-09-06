@@ -3,6 +3,12 @@ import protectedSessionHolder from "../services/protected_session_holder.js";
 import SpacedUpdate from "../services/spaced_update.js";
 import server from "../services/server.js";
 import libraryLoader from "../services/library_loader.js";
+import appContext from "../services/app_context.js";
+import keyboardActionsService from "../services/keyboard_actions.js";
+import noteCreateService from "../services/note_create.js";
+import attributeService from "../services/attributes.js";
+import attributeRenderer from "../services/attribute_renderer.js";
+
 import EmptyTypeWidget from "./type_widgets/empty.js";
 import EditableTextTypeWidget from "./type_widgets/editable_text.js";
 import EditableCodeTypeWidget from "./type_widgets/editable_code.js";
@@ -10,18 +16,15 @@ import FileTypeWidget from "./type_widgets/file.js";
 import ImageTypeWidget from "./type_widgets/image.js";
 import RenderTypeWidget from "./type_widgets/render.js";
 import RelationMapTypeWidget from "./type_widgets/relation_map.js";
+import CanvasTypeWidget from "./type_widgets/canvas.js";
 import ProtectedSessionTypeWidget from "./type_widgets/protected_session.js";
 import BookTypeWidget from "./type_widgets/book.js";
-import appContext from "../services/app_context.js";
-import keyboardActionsService from "../services/keyboard_actions.js";
-import noteCreateService from "../services/note_create.js";
 import DeletedTypeWidget from "./type_widgets/deleted.js";
 import ReadOnlyTextTypeWidget from "./type_widgets/read_only_text.js";
 import ReadOnlyCodeTypeWidget from "./type_widgets/read_only_code.js";
 import NoneTypeWidget from "./type_widgets/none.js";
-import attributeService from "../services/attributes.js";
 import NoteMapTypeWidget from "./type_widgets/note_map.js";
-import attributeRenderer from "../services/attribute_renderer.js";
+import WebViewTypeWidget from "./type_widgets/web_view.js";
 
 const TPL = `
 <div class="note-detail">
@@ -50,9 +53,11 @@ const typeWidgetClasses = {
     'search': NoneTypeWidget,
     'render': RenderTypeWidget,
     'relation-map': RelationMapTypeWidget,
+    'canvas': CanvasTypeWidget,
     'protected-session': ProtectedSessionTypeWidget,
     'book': BookTypeWidget,
-    'note-map': NoteMapTypeWidget
+    'note-map': NoteMapTypeWidget,
+    'web-view': WebViewTypeWidget
 };
 
 export default class NoteDetailWidget extends NoteContextAwareWidget {
@@ -65,17 +70,16 @@ export default class NoteDetailWidget extends NoteContextAwareWidget {
             const {note} = this.noteContext;
             const {noteId} = note;
 
-            const dto = note.dto;
-            dto.content = this.getTypeWidget().getContent();
+            const content = await this.getTypeWidget().getContent();
 
             // for read only notes
-            if (dto.content === undefined) {
+            if (content === undefined) {
                 return;
             }
 
             protectedSessionHolder.touchProtectedSessionIfNecessary(note);
 
-            await server.put('notes/' + noteId, dto, this.componentId);
+            await server.put(`notes/${noteId}/content`, {content}, this.componentId);
         });
 
         appContext.addBeforeUnloadListener(this);
@@ -145,11 +149,15 @@ export default class NoteDetailWidget extends NoteContextAwareWidget {
         this.checkFullHeight();
     }
 
+    /**
+     * sets full height of container that contains note content for a subset of note-types
+     */
     checkFullHeight() {
         // https://github.com/zadam/trilium/issues/2522
         this.$widget.toggleClass("full-height",
             !this.noteContext.hasNoteList()
-            && ['editable-text', 'editable-code'].includes(this.type));
+            && ['editable-text', 'editable-code', 'canvas', 'web-view', 'note-map'].includes(this.type)
+            && this.mime !== 'text/x-sqlite;schema=trilium');
     }
 
     getTypeWidget() {
@@ -210,7 +218,7 @@ export default class NoteDetailWidget extends NoteContextAwareWidget {
         }
     }
 
-    async beforeTabRemoveEvent({ntxIds}) {
+    async beforeNoteContextRemoveEvent({ntxIds}) {
         if (this.isNoteContext(ntxIds)) {
             await this.spacedUpdate.updateNowIfNecessary();
         }
@@ -275,7 +283,7 @@ export default class NoteDetailWidget extends NoteContextAwareWidget {
 
             const label = attrs.find(attr =>
                 attr.type === 'label'
-                && ['readOnly', 'autoReadOnlyDisabled', 'cssClass', 'displayRelations'].includes(attr.name)
+                && ['readOnly', 'autoReadOnlyDisabled', 'cssClass', 'displayRelations', 'hideRelations'].includes(attr.name)
                 && attributeService.isAffecting(attr, this.note));
 
             const relation = attrs.find(attr =>
@@ -301,6 +309,16 @@ export default class NoteDetailWidget extends NoteContextAwareWidget {
         }
     }
 
+    async executeInActiveNoteDetailWidgetEvent({callback}) {
+        if (!this.isActiveNoteContext()) {
+            return;
+        }
+
+        await this.initialized;
+
+        callback(this);
+    }
+
     async cutIntoNoteCommand() {
         const note = appContext.tabManager.getActiveContextNote();
 
@@ -311,7 +329,8 @@ export default class NoteDetailWidget extends NoteContextAwareWidget {
         // without await as this otherwise causes deadlock through component mutex
         noteCreateService.createNote(appContext.tabManager.getActiveContextNotePath(), {
             isProtected: note.isProtected,
-            saveSelection: true
+            saveSelection: true,
+            textEditor: await this.noteContext.getTextEditor()
         });
     }
 
@@ -324,5 +343,17 @@ export default class NoteDetailWidget extends NoteContextAwareWidget {
         if (this.noteContext.isActive()) {
             this.refresh();
         }
+    }
+
+    async executeWithTypeWidgetEvent({resolve, ntxId}) {
+        if (!this.isNoteContext(ntxId)) {
+            return;
+        }
+
+        await this.initialized;
+
+        await this.getWidgetType();
+
+        resolve(this.getTypeWidget());
     }
 }
